@@ -1,12 +1,21 @@
 import { NextResponse } from "next/server";
 import { GoogleAuth } from "google-auth-library";
 import path from "path";
+import fs from "fs";
 
-// Initialize the Google Auth client with the service account key
-const auth = new GoogleAuth({
-  keyFile: path.join(process.cwd(), "service-account.json"),
+// Auth priority:
+// 1. GOOGLE_APPLICATION_CREDENTIALS_JSON env var (Cloud Run via Secret Manager)
+// 2. Local service-account.json (local dev)
+const localKeyFile = path.join(process.cwd(), "service-account.json");
+const authOptions: ConstructorParameters<typeof GoogleAuth>[0] = {
   scopes: "https://www.googleapis.com/auth/cloud-platform",
-});
+};
+if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
+  authOptions.credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
+} else if (fs.existsSync(localKeyFile)) {
+  authOptions.keyFile = localKeyFile;
+}
+const auth = new GoogleAuth(authOptions);
 
 export async function GET(request: Request) {
   try {
