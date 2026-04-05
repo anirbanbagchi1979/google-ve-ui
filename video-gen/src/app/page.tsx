@@ -97,7 +97,7 @@ const AppContent = () => {
   );
 };
 
-const ALLOWED_EMAILS = ["anirban.bagchi@gmail.com"];
+const ALLOWED_EMAILS = ["anirban.bagchi@gmail.com", "bagchi@google.com"];
 
 const AuthGate = () => {
   const { user, loading, setToken } = useAuth();
@@ -110,7 +110,7 @@ const AuthGate = () => {
 
   if (!user) return <LoginPage />;
 
-  const isAllowed = user?.email?.endsWith("@google.com") || ALLOWED_EMAILS.includes(user?.email ?? "");
+  const isAllowed = ALLOWED_EMAILS.includes(user?.email ?? "");
 
   if (!isAllowed) {
     return (
