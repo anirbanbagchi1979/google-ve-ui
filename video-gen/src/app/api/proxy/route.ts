@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
 import { GoogleAuth } from "google-auth-library";
 import path from "path";
-import fs from "fs";
 
-const localKeyFile = path.join(process.cwd(), "service-account.json");
 const auth = new GoogleAuth({
-  ...(fs.existsSync(localKeyFile) ? { keyFile: localKeyFile } : {}),
+  keyFile: path.join(process.cwd(), "service-account.json"),
   scopes: "https://www.googleapis.com/auth/cloud-platform",
 });
 
