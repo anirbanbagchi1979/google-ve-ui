@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "vexp-ui-bb",
     "source": ".",
     "codebase": "default",
     "ignore": [
