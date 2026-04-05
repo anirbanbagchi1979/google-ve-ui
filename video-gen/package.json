@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "deploy": "gcloud run deploy ssrvexpuibb --source . --region us-central1 --project bagchi-genai-bb --allow-unauthenticated --port 3000"
+    "deploy": "gcloud run deploy ssrvexpuibb --source . --region us-central1 --project bagchi-genai-bb --allow-unauthenticated --port 3000 --clear-base-image"
   },
   "dependencies": {
     "firebase": "^12.11.0",
