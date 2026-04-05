@@ -3,6 +3,8 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { User } from "firebase/auth";
 import { onAuthUIStateChange } from "@/lib/auth";
+import { db } from "@/lib/firebase";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 
 interface AuthContextType {
   user: User | null;
@@ -39,9 +41,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthUIStateChange((user) => {
+    const unsubscribe = onAuthUIStateChange(async (user) => {
       setUser(user);
       setLoading(false);
+      
+      if (user) {
+        try {
+          await setDoc(doc(db, "users", user.uid), {
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName,
+            photoURL: user.photoURL,
+            lastLogin: serverTimestamp()
+          }, { merge: true });
+        } catch (error) {
+          console.error("Error storing user in Firestore:", error);
+        }
+      }
     });
     return () => unsubscribe();
   }, []);

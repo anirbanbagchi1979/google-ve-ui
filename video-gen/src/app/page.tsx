@@ -11,170 +11,26 @@ import OperationsPanel from "@/components/OperationsPanel";
 import SettingsPanel from "@/components/SettingsPanel";
 import UpscalePanel from "@/components/UpscalePanel";
 import { Settings } from "lucide-react";
-import { 
-  collection, 
-  addDoc, 
-  onSnapshot, 
-  query, 
-  orderBy, 
-  Timestamp,
-  doc,
-  updateDoc,
-  where
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { logout } from "@/lib/auth";
-import { ConfigProvider, useConfig } from "@/context/ConfigContext";
+import { ConfigProvider } from "@/context/ConfigContext";
 import { useAuth } from "@/context/AuthContext";
 import { ProjectProvider, useProject } from "@/context/ProjectContext";
 import LoginPage from "@/components/LoginPage";
+import { useGenerationFlow } from "@/hooks/useGenerationFlow";
 
 const AppContent = () => {
   const [activeView, setActiveView] = useState("tasks");
-  const [operations, setOperations] = useState<any[]>([]);
-  const [logs, setLogs] = useState<any[]>([]);
   const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
   const [previewOriginalVideoUrl, setPreviewOriginalVideoUrl] = useState<string | null>(null);
-  const { config } = useConfig();
-  const { user } = useAuth();
+  
   const { currentProjectId } = useProject();
+  const { operations, logs, setLogs, addLog, handleGenerate, updateOperationStatus } = useGenerationFlow(setActiveView);
+
   // Clear preview when switching views or projects
   useEffect(() => {
     setPreviewVideoUrl(null);
     setPreviewOriginalVideoUrl(null);
   }, [activeView, currentProjectId]);
-
-  // 1. Initial Load
-  useEffect(() => {
-    if (!currentProjectId) {
-      setOperations([]);
-      return;
-    }
-    const q = query(
-      collection(db, "operations"), 
-      where("projectId", "==", currentProjectId),
-      orderBy("createdAt", "desc")
-    );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const ops = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setOperations(ops);
-    });
-
-    return () => unsubscribe();
-  }, [currentProjectId]);
-
-  // 2. Background Polling Service for Incomplete Tasks
-  useEffect(() => {
-    const pollInterval = setInterval(async () => {
-      const runningOps = operations.filter(op => op.status === "RUNNING");
-      
-      for (const op of runningOps) {
-        try {
-          const modelName = op.type === "upscale" ? config.upscaleModel : config.videoGenModel;
-          const endpoint = `https://${config.location}-aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${config.location}/publishers/google/models/${modelName}:fetchPredictOperation`;
-
-          const response = await fetch("/api/proxy", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ endpoint, payload: { operationName: op.name } })
-          });
-          const data = await response.json();
-
-          if (data.done) {
-            if (data.error) {
-              await updateDoc(doc(db, "operations", op.id), {
-                status: "ERROR",
-                updatedAt: Timestamp.now(),
-                error: data.error
-              });
-              addLog({ type: "ERROR", message: `Operation Failed: ${op.id}`, operationId: op.name, details: data.error });
-            } else {
-              await updateDoc(doc(db, "operations", op.id), {
-                status: "DONE",
-                updatedAt: Timestamp.now(),
-                result: data.response
-              });
-              addLog({ type: "FLOW", message: `Operation Complete: ${op.id}`, operationId: op.name });
-            }
-          }
-        } catch (error) {
-          console.error("Polling error:", error);
-        }
-      }
-    }, 10000); // Poll every 10 seconds
-
-    return () => clearInterval(pollInterval);
-  }, [operations]);
-
-  const addLog = (log: any) => {
-    setLogs(prev => [{
-      id: Math.random().toString(36).substr(2, 9),
-      timestamp: new Date().toLocaleTimeString(),
-      ...log
-    }, ...prev].slice(0, 50));
-  };
-
-  const handleGenerate = async (payload: any, isLongRunning: boolean = false) => {
-    addLog({
-      type: "REQUEST",
-      message: isLongRunning ? "Starting LRO Task" : "Generating Frames",
-      endpoint: "Vertex AI API",
-      payload: payload
-    });
-
-    try {
-      const response = await fetch("/api/proxy", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          endpoint: `https://${config.location}-aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${config.location}/publishers/google/models/${payload.parameters?.experiments?.modelName === 'veo3p1_upscale' ? config.upscaleModel : config.videoGenModel}${isLongRunning ? ':predictLongRunning' : ':predict'}`,
-          payload: payload
-        })
-      });
-
-      const data = await response.json();
-
-      const modelUsed = payload.parameters?.experiments?.modelName === 'veo3p1_upscale' ? config.upscaleModel : config.videoGenModel;
-      
-      if (isLongRunning && data.name) {
-        await addDoc(collection(db, "operations"), {
-          name: data.name,
-          status: "RUNNING",
-          type: payload.parameters?.task || "generation",
-          userEmail: user?.email,
-          projectId: currentProjectId,
-          createdAt: Timestamp.now(),
-          payload: payload,
-          originalGcsUri: payload?.instances?.[0]?.video?.gcsUri || null,
-          modelUsed: modelUsed
-        });
-        
-        setActiveView("tasks");
-        
-        addLog({
-          type: "FLOW",
-          message: "LRO Task Queued to Firestore",
-          operationId: data.name
-        });
-      }
-
-      addLog({
-        type: "RESPONSE",
-        status: response.status,
-        message: isLongRunning ? "LRO Started" : "Frames Generated",
-        data: data
-      });
-    } catch (error: any) {
-      addLog({
-        type: "ERROR",
-        message: "Generation Failed",
-        details: error.message
-      });
-    }
-  };
 
   return (
     <div className="flex flex-col h-screen overflow-hidden font-sans tracking-tight">
@@ -196,15 +52,7 @@ const AppContent = () => {
                 operations={operations}
                 addLog={addLog}
                 onVideoSelect={(url, orig) => { setPreviewVideoUrl(url); setPreviewOriginalVideoUrl(orig || null); }}
-                onStatusUpdate={async (id, status, result, error) => {
-                  await updateDoc(doc(db, "operations", id), {
-                    status,
-                    updatedAt: Timestamp.now(),
-                    ...(status === "DONE" || status === "ERROR" ? { completedAt: Timestamp.now() } : {}),
-                    ...(result ? { result } : {}),
-                    ...(error ? { error } : {})
-                  });
-                }}
+                onStatusUpdate={updateOperationStatus}
               />
             ) : activeView === "settings" ? (
               <div className="flex-1 flex items-center justify-center bg-slate-50 p-12 text-center">
@@ -252,7 +100,9 @@ const AuthGate = () => {
 
   if (!user) return <LoginPage />;
 
-  if (!ALLOWED_EMAILS.includes(user.email ?? "")) {
+  const isAllowed = user?.email?.endsWith("@google.com") || ALLOWED_EMAILS.includes(user?.email ?? "");
+
+  if (!isAllowed) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-6 px-4">
         <div className="w-14 h-14 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center">
