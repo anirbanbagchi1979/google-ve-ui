@@ -413,6 +413,12 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
                 onMouseEnter={e => e.currentTarget.play()}
                 onMouseLeave={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0.5; }}
               />
+              <button
+                onClick={() => setMaskVideoUrl(null)}
+                className="absolute top-1.5 right-1.5 p-1 bg-black/50 rounded-full text-white hover:bg-black/70 transition-colors"
+              >
+                <X size={12} />
+              </button>
               <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-violet-600 text-white text-[9px] font-bold rounded flex items-center gap-1">
                 <Film size={9} /> Mask Selected
               </div>
