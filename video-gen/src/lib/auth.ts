@@ -9,7 +9,6 @@ import { auth } from "./firebase";
 
 export const signInWithGoogle = async () => {
   const provider = new GoogleAuthProvider();
-  provider.addScope("https://www.googleapis.com/auth/cloud-platform");
   try {
     const result = await signInWithPopup(auth, provider);
     // Explicitly return both user and the credential to capture the token
