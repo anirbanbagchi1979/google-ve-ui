@@ -97,7 +97,7 @@ const AppContent = () => {
   );
 };
 
-const ALLOWED_EMAILS = ["anirban.bagchi@gmail.com", "bagchi@google.com"];
+const ALLOWED_EMAILS = ["anirban.bagchi@gmail.com"];
 
 const AuthGate = () => {
   const { user, loading, setToken } = useAuth();
