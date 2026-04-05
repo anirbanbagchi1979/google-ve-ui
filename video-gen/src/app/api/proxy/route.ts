@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server";
 import { GoogleAuth } from "google-auth-library";
 import path from "path";
+import fs from "fs";
+
+// Try candidate paths — covers local dev, Firebase SSR (/workspace), and Dockerfile (/app)
+const keyFile = [
+  path.join(process.cwd(), "service-account.json"),
+  "/workspace/service-account.json",
+  "/app/service-account.json",
+].find(p => fs.existsSync(p));
 
 const auth = new GoogleAuth({
-  keyFile: path.join(process.cwd(), "service-account.json"),
+  ...(keyFile ? { keyFile } : {}),
   scopes: "https://www.googleapis.com/auth/cloud-platform",
 });
 
