@@ -6,7 +6,8 @@ import {
   User,
   Settings,
   Maximize2,
-  Wand2
+  Wand2,
+  Gauge,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -18,6 +19,7 @@ const Sidebar = ({ activeView, onSelect }: SidebarProps) => {
   const items = [
     { id: "upscale", icon: <Maximize2 size={20} />, label: "4K" },
     { id: "transform", icon: <Wand2 size={20} />, label: "Transform" },
+    { id: "perf", icon: <Gauge size={20} />, label: "Perf" },
     { id: "tasks", icon: <History size={20} />, label: "Tasks" },
     { id: "settings", icon: <Settings size={20} />, label: "Settings" },
   ];

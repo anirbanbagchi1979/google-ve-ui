@@ -52,6 +52,16 @@ const AppContent = () => {
               <UpscalePanel onGenerate={handleGenerate} onVideoSelect={(url, orig) => { setPreviewVideoUrl(url); setPreviewOriginalVideoUrl(orig || null); }} />
             ) : activeView === "transform" ? (
               <TransformPanel onGenerate={handleGenerate} onVideoSelect={(url) => { setPreviewVideoUrl(url); setPreviewOriginalVideoUrl(null); }} />
+            ) : activeView === "perf" ? (
+              <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 gap-4">
+                <div className="w-14 h-14 bg-slate-100 border border-slate-200 rounded-2xl flex items-center justify-center">
+                  <span className="text-2xl">🚧</span>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-bold text-slate-700">Performance Control</p>
+                  <p className="text-xs text-slate-400 mt-1">Not implemented at this time</p>
+                </div>
+              </div>
             ) : activeView === "tasks" ? (
               <OperationsPanel
                 operations={operations}
