@@ -106,38 +106,67 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
       payload: payload
     });
 
+    // Extract all generation parameters as top-level fields for easy querying
+    const instance = payload?.instances?.[0] || {};
+    const params = payload?.parameters || {};
+    const extractedParams = {
+      prompt: instance.prompt || null,
+      durationSeconds: params.durationSeconds || null,
+      aspectRatio: params.aspectRatio || null,
+      sampleCount: params.sampleCount || null,
+      compressionQuality: params.compressionQuality || null,
+      resolution: params.resolution || null,
+      fps: instance.fps || null,
+      inputType: instance.video ? "video" : instance.referenceImages ? "image" : null,
+      inputGcsUri: instance.video?.gcsUri || instance.referenceImages?.[0]?.image?.gcsUri || null,
+    };
+
     try {
+      const modelUsed = payload.parameters?.experiments?.modelName === 'veo3p1_upscale' ? config.upscaleModel : config.videoGenModel;
+      const endpoint = `https://${config.location}-aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${config.location}/publishers/google/models/${modelUsed}${isLongRunning ? ':predictLongRunning' : ':predict'}`;
+
       const response = await fetch("/api/proxy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          endpoint: `https://${config.location}-aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${config.location}/publishers/google/models/${payload.parameters?.experiments?.modelName === 'veo3p1_upscale' ? config.upscaleModel : config.videoGenModel}${isLongRunning ? ':predictLongRunning' : ':predict'}`,
-          payload: payload
-        })
+        body: JSON.stringify({ endpoint, payload })
       });
 
       const data = await response.json();
-      const modelUsed = payload.parameters?.experiments?.modelName === 'veo3p1_upscale' ? config.upscaleModel : config.videoGenModel;
-      
+
       if (isLongRunning && data.name) {
         await addDoc(collection(db, "operations"), {
           name: data.name,
           status: "RUNNING",
-          type: payload.parameters?.task || "generation",
+          type: params.task || "generation",
           userEmail: user?.email,
           projectId: currentProjectId,
           createdAt: Timestamp.now(),
           payload: payload,
-          originalGcsUri: payload?.instances?.[0]?.video?.gcsUri || null,
-          modelUsed: modelUsed
+          modelUsed: modelUsed,
+          ...extractedParams
         });
-        
+
         setActiveView("tasks");
-        
+
         addLog({
           type: "FLOW",
           message: "LRO Task Queued to Firestore",
           operationId: data.name
+        });
+      } else if (!isLongRunning) {
+        await addDoc(collection(db, "operations"), {
+          name: null,
+          status: data.error ? "ERROR" : "DONE",
+          type: params.task || "generation",
+          userEmail: user?.email,
+          projectId: currentProjectId,
+          createdAt: Timestamp.now(),
+          completedAt: Timestamp.now(),
+          payload: payload,
+          modelUsed: modelUsed,
+          result: data.error ? null : data,
+          error: data.error || null,
+          ...extractedParams
         });
       }
 
