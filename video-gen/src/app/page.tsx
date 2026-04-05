@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Sidebar from "@/components/Sidebar";
 import Navbar from "@/components/Navbar";
+import ProjectBar from "@/components/ProjectBar";
 import ControlPanel from "@/components/ControlPanel";
 import PreviewArea from "@/components/PreviewArea";
 import DebugConsole from "@/components/DebugConsole";
@@ -18,25 +19,42 @@ import {
   orderBy, 
   Timestamp,
   doc,
-  updateDoc
+  updateDoc,
+  where
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { logout } from "@/lib/auth";
 import { ConfigProvider, useConfig } from "@/context/ConfigContext";
 import { useAuth } from "@/context/AuthContext";
+import { ProjectProvider, useProject } from "@/context/ProjectContext";
 import LoginPage from "@/components/LoginPage";
 
 const AppContent = () => {
-  const [activeView, setActiveView] = useState("inputs");
+  const [activeView, setActiveView] = useState("tasks");
   const [operations, setOperations] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
   const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
+  const [previewOriginalVideoUrl, setPreviewOriginalVideoUrl] = useState<string | null>(null);
   const { config } = useConfig();
   const { user } = useAuth();
+  const { currentProjectId } = useProject();
+  // Clear preview when switching views or projects
+  useEffect(() => {
+    setPreviewVideoUrl(null);
+    setPreviewOriginalVideoUrl(null);
+  }, [activeView, currentProjectId]);
 
   // 1. Initial Load
   useEffect(() => {
-    const q = query(collection(db, "operations"), orderBy("createdAt", "desc"));
+    if (!currentProjectId) {
+      setOperations([]);
+      return;
+    }
+    const q = query(
+      collection(db, "operations"), 
+      where("projectId", "==", currentProjectId),
+      orderBy("createdAt", "desc")
+    );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const ops = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -46,7 +64,7 @@ const AppContent = () => {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [currentProjectId]);
 
   // 2. Background Polling Service for Incomplete Tasks
   useEffect(() => {
@@ -119,14 +137,19 @@ const AppContent = () => {
 
       const data = await response.json();
 
+      const modelUsed = payload.parameters?.experiments?.modelName === 'veo3p1_upscale' ? config.upscaleModel : config.videoGenModel;
+      
       if (isLongRunning && data.name) {
         await addDoc(collection(db, "operations"), {
           name: data.name,
           status: "RUNNING",
           type: payload.parameters?.task || "generation",
           userEmail: user?.email,
+          projectId: currentProjectId,
           createdAt: Timestamp.now(),
-          payload: payload
+          payload: payload,
+          originalGcsUri: payload?.instances?.[0]?.video?.gcsUri || null,
+          modelUsed: modelUsed
         });
         
         setActiveView("tasks");
@@ -156,6 +179,7 @@ const AppContent = () => {
   return (
     <div className="flex flex-col h-screen overflow-hidden font-sans tracking-tight">
     <Navbar />
+    <ProjectBar />
     <main className="flex flex-1 bg-slate-100 overflow-hidden text-slate-900">
       <Sidebar activeView={activeView} onSelect={setActiveView} />
 
@@ -166,16 +190,17 @@ const AppContent = () => {
             {activeView === "inputs" ? (
               <ControlPanel onGenerate={handleGenerate} />
             ) : activeView === "upscale" ? (
-              <UpscalePanel onGenerate={handleGenerate} onVideoSelect={(url) => setPreviewVideoUrl(url)} />
+              <UpscalePanel onGenerate={handleGenerate} onVideoSelect={(url, orig) => { setPreviewVideoUrl(url); setPreviewOriginalVideoUrl(orig || null); }} />
             ) : activeView === "tasks" ? (
               <OperationsPanel
                 operations={operations}
                 addLog={addLog}
-                onVideoSelect={(url) => setPreviewVideoUrl(url)}
+                onVideoSelect={(url, orig) => { setPreviewVideoUrl(url); setPreviewOriginalVideoUrl(orig || null); }}
                 onStatusUpdate={async (id, status, result, error) => {
                   await updateDoc(doc(db, "operations", id), {
                     status,
                     updatedAt: Timestamp.now(),
+                    ...(status === "DONE" || status === "ERROR" ? { completedAt: Timestamp.now() } : {}),
                     ...(result ? { result } : {}),
                     ...(error ? { error } : {})
                   });
@@ -203,7 +228,7 @@ const AppContent = () => {
              {activeView === "settings" ? (
                <SettingsPanel />
              ) : (
-               <PreviewArea videoUrl={previewVideoUrl} />
+               <PreviewArea videoUrl={previewVideoUrl} originalVideoUrl={previewOriginalVideoUrl} />
              )}
              <DebugConsole logs={logs} onClear={() => setLogs([])} />
           </div>
@@ -250,9 +275,11 @@ const AuthGate = () => {
   }
 
   return (
-    <ConfigProvider>
-      <AppContent />
-    </ConfigProvider>
+    <ProjectProvider>
+      <ConfigProvider>
+        <AppContent />
+      </ConfigProvider>
+    </ProjectProvider>
   );
 };
 

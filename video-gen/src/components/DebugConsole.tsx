@@ -25,7 +25,7 @@ const DebugConsole = ({ logs, onClear }: DebugConsoleProps) => {
   return (
     <div className={`fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-700 transition-all duration-300 z-[100] ${isExpanded ? "h-80" : "h-12"}`}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 h-12 bg-slate-800/50 cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => setIsExpanded(!isExpanded)}>
+      <div className="flex items-center justify-between px-4 h-12 bg-slate-900 cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => setIsExpanded(!isExpanded)}>
         <div className="flex items-center gap-3">
           <Terminal className="w-3.5 h-3.5 text-slate-500" />
           <span className="text-xs font-bold font-mono tracking-wider text-slate-400 uppercase">Debug Console</span>

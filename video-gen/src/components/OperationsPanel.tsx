@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   History, 
   Loader2, 
@@ -23,8 +23,11 @@ interface Operation {
   type: string;
   userEmail?: string;
   createdAt: any;
+  updatedAt?: any;
+  completedAt?: any;
   result?: any;
   payload?: any;
+  originalGcsUri?: string;
   error?: {
     code: number;
     message: string;
@@ -34,7 +37,7 @@ interface Operation {
 interface OperationsPanelProps {
   operations: Operation[];
   addLog: (log: any) => void;
-  onVideoSelect?: (url: string) => void;
+  onVideoSelect?: (url: string, originalUrl?: string) => void;
   onStatusUpdate?: (id: string, status: "DONE" | "ERROR", result?: any, error?: any) => Promise<void>;
 }
 
@@ -43,6 +46,33 @@ const OperationsPanel = ({ operations, addLog, onVideoSelect, onStatusUpdate }: 
   const [checkingIds, setCheckingIds] = useState<Set<string>>(new Set());
   const [checkResults, setCheckResults] = useState<Record<string, any>>({});
   const { config } = useConfig();
+
+  // Force re-render every second to update "RUNNING" operation elapsed times
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const getDurationString = (op: Operation) => {
+    if (!op.createdAt) return null;
+    const start = op.createdAt.seconds ? op.createdAt.seconds * 1000 : new Date(op.createdAt).getTime();
+    let end;
+    
+    if (op.completedAt) {
+      end = op.completedAt.seconds ? op.completedAt.seconds * 1000 : new Date(op.completedAt).getTime();
+    } else if (op.status === "DONE" || op.status === "ERROR") {
+      end = op.updatedAt?.seconds ? op.updatedAt.seconds * 1000 : new Date(op.updatedAt || now).getTime();
+    } else {
+      end = now;
+    }
+
+    const diffSeconds = Math.max(0, Math.floor((end - start) / 1000));
+    if (diffSeconds < 60) return `${diffSeconds}s`;
+    const m = Math.floor(diffSeconds / 60);
+    const s = diffSeconds % 60;
+    return `${m}m ${s}s`;
+  };
 
   // Extract the actual output GCS URI from result (Veo returns videos array)
   const getOutputGcsUri = (op: Operation): string | null => {
@@ -172,6 +202,9 @@ const OperationsPanel = ({ operations, addLog, onVideoSelect, onStatusUpdate }: 
                             via {op.userEmail}
                           </span>
                         )}
+                        <span className="text-[10px] text-slate-500 font-bold bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
+                          {op.status === "RUNNING" ? "⏳" : "⏱️"} {getDurationString(op)}
+                        </span>
                       </div>
                       <h4 className="text-[13px] font-bold text-slate-800 truncate">
                         {op.type === "upscale" ? "4K Video Upscale" : "Vertex AI Generation"}
@@ -249,8 +282,12 @@ const OperationsPanel = ({ operations, addLog, onVideoSelect, onStatusUpdate }: 
                               {/* Thumbnail for completed jobs — click to preview */}
                               {op.status === "DONE" && firebaseUrl && (
                                 <div
-                                  className="relative aspect-video rounded-lg overflow-hidden border border-slate-200 bg-black cursor-pointer group/thumb"
-                                  onClick={(e) => { e.stopPropagation(); onVideoSelect?.(firebaseUrl); }}
+                                  className="relative w-48 aspect-video rounded-lg overflow-hidden border border-slate-200 bg-black cursor-pointer group/thumb"
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    const origGcs = op.originalGcsUri || op.payload?.instances?.[0]?.video?.gcsUri;
+                                    onVideoSelect?.(firebaseUrl, op.type === "upscale" && origGcs ? gcsToFirebaseUrl(origGcs) : undefined); 
+                                  }}
                                 >
                                   <video
                                     src={firebaseUrl + "#t=0.5"}
@@ -313,8 +350,11 @@ const OperationsPanel = ({ operations, addLog, onVideoSelect, onStatusUpdate }: 
                               return uri && url ? (
                                 <>
                                   <div
-                                    className="relative aspect-video rounded-lg overflow-hidden border border-emerald-200 bg-black cursor-pointer group/thumb mt-1"
-                                    onClick={() => onVideoSelect?.(url)}
+                                    className="relative w-48 aspect-video rounded-lg overflow-hidden border border-emerald-200 bg-black cursor-pointer group/thumb mt-1"
+                                    onClick={() => {
+                                      const origGcs = op.originalGcsUri || op.payload?.instances?.[0]?.video?.gcsUri;
+                                      onVideoSelect?.(url, op.type === "upscale" && origGcs ? gcsToFirebaseUrl(origGcs) : undefined);
+                                    }}
                                   >
                                     <video src={url + "#t=0.5"} className="w-full h-full object-cover" preload="metadata" muted playsInline />
                                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity">

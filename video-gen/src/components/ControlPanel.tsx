@@ -20,8 +20,9 @@ import {
 } from "lucide-react";
 import { storage, db } from "@/lib/firebase";
 import { ref, listAll, getDownloadURL, uploadBytesResumable } from "firebase/storage";
-import { collection, addDoc, serverTimestamp, query, getDocs, orderBy, limit } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, getDocs, orderBy, limit, where } from "firebase/firestore";
 import { useConfig } from "@/context/ConfigContext";
+import { useProject } from "@/context/ProjectContext";
 
 interface VideoAsset {
   id: string;
@@ -57,6 +58,7 @@ const getGcsUri = (url: string | null) => {
 
 const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
   const { config } = useConfig();
+  const { currentProjectId } = useProject();
   const [activeTab, setActiveTab] = useState<"Image" | "Video" | "Audio">("Video");
   const [assetFilter, setAssetFilter] = useState<"Image" | "Video">("Video");
   
@@ -93,8 +95,16 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
   }, []);
 
   const fetchVideos = useCallback(async () => {
+    if (!currentProjectId) {
+      setVideos([]);
+      return;
+    }
     try {
-      const q = query(collection(db, "videos"), limit(10));
+      const q = query(
+        collection(db, "videos"), 
+        where("projectId", "==", currentProjectId), 
+        limit(10)
+      );
       const querySnapshot = await getDocs(q);
       const videoList: VideoAsset[] = [];
       querySnapshot.forEach((doc) => {
@@ -110,7 +120,7 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
     } catch (err) {
       console.error("Error fetching videos", err);
     }
-  }, []);
+  }, [currentProjectId]);
 
   const loadAllAssets = useCallback(async () => {
     setLoadingAssets(true);
@@ -170,6 +180,7 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
               url: downloadURL,
               type: file.type,
               size: file.size,
+              projectId: currentProjectId,
               createdAt: serverTimestamp(),
             });
 

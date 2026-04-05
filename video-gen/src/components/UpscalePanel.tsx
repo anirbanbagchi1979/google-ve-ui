@@ -13,12 +13,13 @@ import {
 } from "lucide-react";
 import { storage, db } from "@/lib/firebase";
 import { ref, listAll, getDownloadURL, uploadBytesResumable } from "firebase/storage";
-import { collection, getDocs, query, limit } from "firebase/firestore";
+import { collection, getDocs, query, limit, where, addDoc, serverTimestamp } from "firebase/firestore";
 import { useConfig } from "@/context/ConfigContext";
+import { useProject } from "@/context/ProjectContext";
 
 interface UpscalePanelProps {
-  onGenerate?: (payload: any, isLongRunning?: boolean) => void;
-  onVideoSelect?: (url: string | null) => void;
+  onGenerate?: (payload: any, isLongRunning: boolean) => void;
+  onVideoSelect?: (url: string | null, originalUrl?: string | null) => void;
 }
 
 const getGcsUri = (url: string | null) => {
@@ -37,6 +38,7 @@ const getGcsUri = (url: string | null) => {
 
 const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
   const { config } = useConfig();
+  const { currentProjectId } = useProject();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Video library
@@ -58,10 +60,19 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const fetchVideos = useCallback(async () => {
+    if (!currentProjectId) {
+      setVideos([]);
+      setLoadingAssets(false);
+      return;
+    }
     setLoadingAssets(true);
     try {
       // From Firestore videos collection
-      const snap = await getDocs(query(collection(db, "videos"), limit(20)));
+      const snap = await getDocs(query(
+        collection(db, "videos"), 
+        where("projectId", "==", currentProjectId),
+        limit(20)
+      ));
       const list = snap.docs.map(d => ({ id: d.id, name: d.data().name || "Untitled", url: d.data().url || "" }));
       setVideos(list.reverse());
     } catch (e) {
@@ -69,7 +80,7 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
     } finally {
       setLoadingAssets(false);
     }
-  }, []);
+  }, [currentProjectId]);
 
   useEffect(() => { fetchVideos(); }, [fetchVideos]);
 
@@ -89,11 +100,24 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
       snap => setUploadProgress((snap.bytesTransferred / snap.totalBytes) * 100),
       err => { setUploadError("Upload failed: " + err.message); setIsUploading(false); },
       async () => {
-        const url = await getDownloadURL(task.snapshot.ref);
-        selectVideo(url);
-        await fetchVideos();
-        setIsUploading(false);
-        if (fileInputRef.current) fileInputRef.current.value = "";
+        try {
+          const url = await getDownloadURL(task.snapshot.ref);
+          await addDoc(collection(db, "videos"), {
+            name: file.name,
+            url: url,
+            type: file.type,
+            size: file.size,
+            projectId: currentProjectId,
+            createdAt: serverTimestamp(),
+          });
+          selectVideo(url);
+          await fetchVideos();
+        } catch (e) {
+          console.error("Error saving video record", e);
+        } finally {
+          setIsUploading(false);
+          if (fileInputRef.current) fileInputRef.current.value = "";
+        }
       }
     );
   };

@@ -40,7 +40,7 @@ const Navbar = () => {
   };
 
   return (
-    <header className="h-11 bg-slate-900 border-b border-slate-700 flex items-center justify-between px-4 shrink-0 z-50">
+    <header className="h-14 bg-slate-900 border-b border-slate-700 flex items-center justify-between px-4 shrink-0 z-50">
       {/* Left — branding */}
       <div className="flex items-center gap-2">
         <div className="w-6 h-6 bg-blue-500 rounded flex items-center justify-center">
@@ -53,7 +53,6 @@ const Navbar = () => {
           Beta
         </span>
       </div>
-
       {/* Right — user */}
       {!loading && (
         <div className="relative" ref={dropdownRef}>

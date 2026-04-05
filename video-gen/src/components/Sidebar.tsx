@@ -2,12 +2,7 @@
 
 import React from "react";
 import {
-  Wrench,
-  LayoutGrid,
-  MessageSquare,
   History,
-  GitBranch,
-  CircleDot,
   User,
   Settings,
   Maximize2
@@ -20,13 +15,8 @@ interface SidebarProps {
 
 const Sidebar = ({ activeView, onSelect }: SidebarProps) => {
   const items = [
-    { id: "inputs", icon: <Wrench size={20} />, label: "Tools" },
     { id: "upscale", icon: <Maximize2 size={20} />, label: "4K" },
     { id: "tasks", icon: <History size={20} />, label: "Tasks" },
-    { id: "apps", icon: <LayoutGrid size={20} />, label: "Apps" },
-    { id: "chat", icon: <MessageSquare size={20} />, label: "Chat" },
-    { id: "workflow", icon: <GitBranch size={20} />, label: "Flows" },
-    { id: "live", icon: <CircleDot size={20} />, label: "Live" },
     { id: "settings", icon: <Settings size={20} />, label: "Settings" },
   ];
 
