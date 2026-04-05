@@ -10,6 +10,7 @@ import DebugConsole from "@/components/DebugConsole";
 import OperationsPanel from "@/components/OperationsPanel";
 import SettingsPanel from "@/components/SettingsPanel";
 import UpscalePanel from "@/components/UpscalePanel";
+import TransformPanel from "@/components/TransformPanel";
 import { Settings } from "lucide-react";
 import { logout } from "@/lib/auth";
 import { ConfigProvider } from "@/context/ConfigContext";
@@ -22,6 +23,8 @@ const AppContent = () => {
   const [activeView, setActiveView] = useState("tasks");
   const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
   const [previewOriginalVideoUrl, setPreviewOriginalVideoUrl] = useState<string | null>(null);
+  const [previewLeftLabel, setPreviewLeftLabel] = useState("Input Video");
+  const [previewRightLabel, setPreviewRightLabel] = useState("Output");
   
   const { currentProjectId } = useProject();
   const { operations, logs, setLogs, addLog, handleGenerate, updateOperationStatus } = useGenerationFlow(setActiveView);
@@ -47,11 +50,18 @@ const AppContent = () => {
               <ControlPanel onGenerate={handleGenerate} />
             ) : activeView === "upscale" ? (
               <UpscalePanel onGenerate={handleGenerate} onVideoSelect={(url, orig) => { setPreviewVideoUrl(url); setPreviewOriginalVideoUrl(orig || null); }} />
+            ) : activeView === "transform" ? (
+              <TransformPanel onGenerate={handleGenerate} onVideoSelect={(url) => { setPreviewVideoUrl(url); setPreviewOriginalVideoUrl(null); }} />
             ) : activeView === "tasks" ? (
               <OperationsPanel
                 operations={operations}
                 addLog={addLog}
-                onVideoSelect={(url, orig) => { setPreviewVideoUrl(url); setPreviewOriginalVideoUrl(orig || null); }}
+                onVideoSelect={(url, orig, left, right) => {
+                  setPreviewVideoUrl(url);
+                  setPreviewOriginalVideoUrl(orig || null);
+                  setPreviewLeftLabel(left || "Input Video");
+                  setPreviewRightLabel(right || "Output");
+                }}
                 onStatusUpdate={updateOperationStatus}
               />
             ) : activeView === "settings" ? (
@@ -76,7 +86,7 @@ const AppContent = () => {
              {activeView === "settings" ? (
                <SettingsPanel />
              ) : (
-               <PreviewArea videoUrl={previewVideoUrl} originalVideoUrl={previewOriginalVideoUrl} />
+               <PreviewArea videoUrl={previewVideoUrl} originalVideoUrl={previewOriginalVideoUrl} leftLabel={previewLeftLabel} rightLabel={previewRightLabel} />
              )}
              <DebugConsole logs={logs} onClear={() => setLogs([])} />
           </div>

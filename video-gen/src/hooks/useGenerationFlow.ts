@@ -59,7 +59,7 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
       
       for (const op of runningOps) {
         try {
-          const modelName = op.type === "upscale" ? config.upscaleModel : config.videoGenModel;
+          const modelName = op.modelUsed || (op.type === "upscale" ? config.upscaleModel : config.videoGenModel);
           const endpoint = `https://${config.location}-aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${config.location}/publishers/google/models/${modelName}:fetchPredictOperation`;
 
           const response = await fetch("/api/proxy", {
@@ -119,25 +119,34 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
       fps: instance.fps || null,
       inputType: instance.video ? "video" : instance.referenceImages ? "image" : null,
       inputGcsUri: instance.video?.gcsUri || instance.referenceImages?.[0]?.image?.gcsUri || null,
+      maskVideoGcsUri: params.experiments?.videoTransformMaskGcsUri || null,
+      videoTransformStrength: params.experiments?.videoTransformStrength ?? null,
+      numDiffusionSteps: params.experiments?.numDiffusionSteps ?? null,
     };
 
     try {
-      const modelUsed = payload.parameters?.experiments?.modelName === 'veo3p1_upscale' ? config.upscaleModel : config.videoGenModel;
+      const { _model: metaModel, ...apiPayload } = payload;
+      const experimentModel = params.experiments?.modelName;
+      const modelUsed = experimentModel === 'veo3p1_upscale'
+        ? config.upscaleModel
+        : metaModel || experimentModel || config.videoGenModel;
       const endpoint = `https://${config.location}-aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${config.location}/publishers/google/models/${modelUsed}${isLongRunning ? ':predictLongRunning' : ':predict'}`;
 
       const response = await fetch("/api/proxy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ endpoint, payload })
+        body: JSON.stringify({ endpoint, payload: apiPayload })
       });
 
       const data = await response.json();
+
+      const operationType = params.task || (metaModel === "veo-experimental" ? "transform" : "generation");
 
       if (isLongRunning && data.name) {
         await addDoc(collection(db, "operations"), {
           name: data.name,
           status: "RUNNING",
-          type: params.task || "generation",
+          type: operationType,
           userEmail: user?.email,
           projectId: currentProjectId,
           createdAt: Timestamp.now(),
@@ -157,7 +166,7 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
         await addDoc(collection(db, "operations"), {
           name: null,
           status: data.error ? "ERROR" : "DONE",
-          type: params.task || "generation",
+          type: operationType,
           userEmail: user?.email,
           projectId: currentProjectId,
           createdAt: Timestamp.now(),
