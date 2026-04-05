@@ -17,9 +17,11 @@ import {
 interface PreviewAreaProps {
   videoUrl?: string | null;
   originalVideoUrl?: string | null;
+  leftLabel?: string;
+  rightLabel?: string;
 }
 
-const PreviewArea = ({ videoUrl, originalVideoUrl }: PreviewAreaProps) => {
+const PreviewArea = ({ videoUrl, originalVideoUrl, leftLabel = "Input Video", rightLabel = "Output" }: PreviewAreaProps) => {
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -124,10 +126,10 @@ const PreviewArea = ({ videoUrl, originalVideoUrl }: PreviewAreaProps) => {
         {isSplit && (
           <div className="absolute top-8 left-0 right-0 flex items-center justify-between px-12 pointer-events-none z-30">
             <div className="flex-1 text-center">
-              <span className="px-4 py-2 bg-black/50 backdrop-blur-md rounded-lg text-white/50 font-bold uppercase tracking-widest text-sm border border-white/10 drop-shadow-md">Original Video</span>
+              <span className="px-4 py-2 bg-black/50 backdrop-blur-md rounded-lg text-white/50 font-bold uppercase tracking-widest text-sm border border-white/10 drop-shadow-md">{leftLabel}</span>
             </div>
             <div className="flex-1 text-center">
-              <span className="px-4 py-2 bg-blue-500/20 backdrop-blur-md rounded-lg text-blue-400 font-bold uppercase tracking-widest text-sm border border-blue-500/30 drop-shadow-md">4K Upscaled Output</span>
+              <span className="px-4 py-2 bg-blue-500/20 backdrop-blur-md rounded-lg text-blue-400 font-bold uppercase tracking-widest text-sm border border-blue-500/30 drop-shadow-md">{rightLabel}</span>
             </div>
           </div>
         )}
