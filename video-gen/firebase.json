@@ -1,0 +1,11 @@
+{
+  "hosting": {
+    "source": ".",
+    "codebase": "default",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ]
+  }
+}

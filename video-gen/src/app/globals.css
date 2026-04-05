@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  
+  --color-brand: #3b82f6; /* Professional blue */
+  --color-bg-app: #f8fafc;
+  --color-bg-sidebar: #ffffff;
+  --color-bg-panel: #f1f5f9;
+  --color-border-subtle: #e2e8f0;
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #0f172a;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
+/* Scrollbar styling for a cleaner look */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.panel-border {
+  border-right: 1px solid var(--color-border-subtle);
+}
+
+.btn-primary {
+  @apply bg-brand text-white font-semibold py-2 px-6 rounded-lg transition-all hover:bg-blue-600 active:scale-95 shadow-sm;
+}
+
+.btn-secondary {
+  @apply bg-white text-slate-700 border border-slate-200 font-medium py-2 px-4 rounded-lg transition-all hover:bg-slate-50 active:scale-95;
+}
+
+.tab-active {
+  @apply border-b-2 border-slate-800 text-slate-900;
+}
+
+.tab-inactive {
+  @apply text-slate-400 hover:text-slate-600;
+}
