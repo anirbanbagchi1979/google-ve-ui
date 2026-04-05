@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Environment / secrets
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+service-account.json
+credentials.json
+client_secret*.json
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# Claude Code
+.claude/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data outputs (keep samples, exclude large generated results if needed)
+# Uncomment if data dir gets large:
+# data/dataset_results/
