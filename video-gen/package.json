@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "deploy": "gcloud run deploy ssrvexpuibb --source . --region us-central1 --project bagchi-genai-bb --allow-unauthenticated --port 3000 --clear-base-image"
+    "deploy": "docker build -t us-central1-docker.pkg.dev/bagchi-genai-bb/cloud-run-source-deploy/ssrvexpuibb . && docker push us-central1-docker.pkg.dev/bagchi-genai-bb/cloud-run-source-deploy/ssrvexpuibb && gcloud run deploy ssrvexpuibb --image us-central1-docker.pkg.dev/bagchi-genai-bb/cloud-run-source-deploy/ssrvexpuibb --region us-central1 --project bagchi-genai-bb --allow-unauthenticated"
   },
   "dependencies": {
     "firebase": "^12.11.0",
