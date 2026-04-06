@@ -1,19 +1,16 @@
 import { NextResponse } from "next/server";
 import { GoogleAuth } from "google-auth-library";
-import path from "path";
-import fs from "fs";
 
-// Try candidate paths — covers local dev, Firebase SSR (/workspace), and Dockerfile (/app)
-const keyFile = [
-  path.join(process.cwd(), "service-account.json"),
-  "/workspace/service-account.json",
-  "/app/service-account.json",
-].find(p => fs.existsSync(p));
+const PROXY_URL = process.env.PROXY_URL || "https://vef-proxy-uhz33244pa-uc.a.run.app";
 
-const auth = new GoogleAuth({
-  ...(keyFile ? { keyFile } : {}),
-  scopes: "https://www.googleapis.com/auth/cloud-platform",
-});
+// Used locally only — in Cloud Run, identity token is fetched via ADC
+const auth = new GoogleAuth();
+
+async function getIdTokenClient() {
+  // In Cloud Run, this uses the attached service account to get an identity token
+  // scoped to the proxy URL, satisfying Cloud Run's --no-allow-unauthenticated check
+  return auth.getIdTokenClient(PROXY_URL);
+}
 
 export async function GET(request: Request) {
   try {
@@ -24,41 +21,16 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Missing operation name" }, { status: 400 });
     }
 
-    // Get an authorized client
-    const client = await auth.getClient();
-    const projectId = await auth.getProjectId();
-    
-    const tokenResponse = await client.getAccessToken();
-    const token = tokenResponse.token;
-
-    // Build the Vertex AI URL accurately
-    // Note: ensure operationName doesn't have a leading slash
-    const sanitizedName = operationName.startsWith("/") ? operationName.substring(1) : operationName;
-    const endpoint = `https://us-central1-aiplatform.googleapis.com/v1/${sanitizedName}`;
-
-    console.log(`[Proxy GET] Polling Operation: ${endpoint}`);
-
-    const response = await fetch(endpoint, {
+    const client = await getIdTokenClient();
+    const response = await client.request({
+      url: `${PROXY_URL}/proxy?name=${encodeURIComponent(operationName)}`,
       method: "GET",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "X-Goog-User-Project": projectId,
-      },
     });
 
-    const data = await response.json();
-    
-    if (response.status >= 400) {
-      console.warn(`[Proxy GET] API Error (${response.status}):`, data);
-    }
-
-    return NextResponse.json(data, { status: response.status });
+    return NextResponse.json(response.data, { status: response.status });
   } catch (error: any) {
-    console.error("[Proxy GET] Crash:", error.message);
-    return NextResponse.json({ 
-      error: error.message,
-      stack: error.stack 
-    }, { status: 500 });
+    console.error("[route GET] Crash:", error.message);
+    return NextResponse.json({ error: "Internal proxy error" }, { status: 500 });
   }
 }
 
@@ -70,30 +42,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing endpoint or payload" }, { status: 400 });
     }
 
-    // Get an authorized client (automatically handles token refresh)
-    const client = await auth.getClient();
-    const projectId = await auth.getProjectId();
-    
-    // Get the access token
-    const tokenResponse = await client.getAccessToken();
-    const token = tokenResponse.token;
-
-    const response = await fetch(endpoint, {
+    const client = await getIdTokenClient();
+    const response = await client.request({
+      url: `${PROXY_URL}/proxy`,
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,
-        "X-Vertex-AI-LLM-Request-Type": "shared",
-        "X-Goog-User-Project": projectId, // Required for ADC/SA tokens in some regions
-      },
-      body: JSON.stringify(payload),
+      headers: { "Content-Type": "application/json" },
+      data: { endpoint, payload },
     });
 
-    const data = await response.json();
-
-    return NextResponse.json(data, { status: response.status });
+    return NextResponse.json(response.data, { status: response.status });
   } catch (error: any) {
-    console.error("Proxy error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[route POST] Crash:", error.message);
+    return NextResponse.json({ error: "Internal proxy error" }, { status: 500 });
   }
 }
