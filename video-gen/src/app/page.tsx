@@ -44,7 +44,7 @@ const AppContent = () => {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden font-sans tracking-tight">
-    <Navbar />
+    <Navbar onAdminClick={() => setActiveView("admin")} />
     <ProjectBar />
     <main className="flex flex-1 bg-slate-100 overflow-hidden text-slate-900">
       <Sidebar activeView={activeView} onSelect={setActiveView} />

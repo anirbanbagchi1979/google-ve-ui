@@ -3,10 +3,17 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { signInWithGoogle, logout } from "@/lib/auth";
-import { LogOut, User, ChevronDown, Zap } from "lucide-react";
+import { LogOut, User, ChevronDown, Zap, ShieldCheck } from "lucide-react";
 
-const Navbar = () => {
+const ADMIN_EMAILS = ["anirban.bagchi@gmail.com", "bagchi@google.com"];
+
+interface NavbarProps {
+  onAdminClick?: () => void;
+}
+
+const Navbar = ({ onAdminClick }: NavbarProps) => {
   const { user, loading, setToken } = useAuth();
+  const isAdmin = ADMIN_EMAILS.includes(user?.email ?? "");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -81,6 +88,15 @@ const Navbar = () => {
                     <p className="text-[12px] font-semibold text-white truncate">{user.displayName}</p>
                     <p className="text-[11px] text-slate-400 truncate">{user.email}</p>
                   </div>
+                  {isAdmin && onAdminClick && (
+                    <button
+                      onClick={() => { setDropdownOpen(false); onAdminClick(); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-[12px] text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
+                    >
+                      <ShieldCheck size={14} />
+                      Admin
+                    </button>
+                  )}
                   <button
                     onClick={handleLogout}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-[12px] text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
