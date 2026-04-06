@@ -20,8 +20,6 @@ import {
 import { PanelHeader } from "@/components/ui/PanelHeader";
 
 import { useConfig } from "@/context/ConfigContext";
-import { useAuth } from "@/context/AuthContext";
-import { proxyFetch } from "@/lib/proxyFetch";
 import { formatBytes } from "@/utils/time";
 
 interface Operation {
@@ -73,7 +71,6 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
   const [checkResults, setCheckResults] = useState<Record<string, any>>({});
   const [outputSizes, setOutputSizes] = useState<Record<string, number>>({});
   const { config } = useConfig();
-  const { getIdToken } = useAuth();
 
   // Fetch output file sizes for completed operations
   useEffect(() => {
@@ -164,7 +161,11 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
     });
 
     try {
-      const response = await proxyFetch(getIdToken, { endpoint, payload });
+      const response = await fetch("/api/proxy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint, payload })
+      });
 
       const data = await response.json();
 
