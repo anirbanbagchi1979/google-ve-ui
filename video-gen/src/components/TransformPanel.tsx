@@ -81,7 +81,9 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
       ));
       lastDocRef.current = snap.docs[snap.docs.length - 1] ?? null;
       setHasMore(snap.docs.length === PAGE_SIZE);
-      setVideos(snap.docs.map(d => ({ id: d.id, name: d.data().name || "Untitled", url: d.data().url || "", size: d.data().size || undefined, aspectRatio: d.data().aspectRatio || undefined })));
+      setVideos(snap.docs
+        .filter(d => d.data().source !== "upscale_input")
+        .map(d => ({ id: d.id, name: d.data().name || "Untitled", url: d.data().url || "", size: d.data().size || undefined, aspectRatio: d.data().aspectRatio || undefined })));
     } catch (e) {
       console.error("Error fetching videos", e);
     } finally {
@@ -102,7 +104,9 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
       ));
       lastDocRef.current = snap.docs[snap.docs.length - 1] ?? lastDocRef.current;
       setHasMore(snap.docs.length === PAGE_SIZE);
-      setVideos(prev => [...prev, ...snap.docs.map(d => ({ id: d.id, name: d.data().name || "Untitled", url: d.data().url || "", size: d.data().size || undefined, aspectRatio: d.data().aspectRatio || undefined }))]);
+      setVideos(prev => [...prev, ...snap.docs
+        .filter(d => d.data().source !== "upscale_input")
+        .map(d => ({ id: d.id, name: d.data().name || "Untitled", url: d.data().url || "", size: d.data().size || undefined, aspectRatio: d.data().aspectRatio || undefined }))]);
     } catch (e) {
       console.error("Error loading more videos", e);
     } finally {

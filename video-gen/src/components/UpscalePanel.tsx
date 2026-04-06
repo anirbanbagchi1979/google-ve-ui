@@ -157,6 +157,7 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
             type: file.type,
             size: file.size,
             aspectRatio: detectedRatio,
+            source: "upscale_input",
             projectId: currentProjectId,
             createdAt: serverTimestamp(),
           });
