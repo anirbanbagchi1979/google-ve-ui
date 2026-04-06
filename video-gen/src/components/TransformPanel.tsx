@@ -152,7 +152,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
           const url = await getDownloadURL(task.snapshot.ref);
           await addDoc(collection(db, "videos"), {
             name: file.name, url, type: file.type, size: file.size,
-            aspectRatio: detectedRatio,
+            aspectRatio: detectedRatio, isUpscaleOutput: false,
             projectId: currentProjectId, createdAt: serverTimestamp(),
           });
           setSelectedVideoUrl(url);

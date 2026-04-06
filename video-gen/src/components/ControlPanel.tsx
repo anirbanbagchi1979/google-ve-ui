@@ -207,6 +207,7 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
               type: file.type,
               size: file.size,
               aspectRatio: detectedRatio,
+              isUpscaleOutput: false,
               projectId: currentProjectId,
               createdAt: serverTimestamp(),
             });

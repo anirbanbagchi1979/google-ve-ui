@@ -86,17 +86,17 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
                 completedAt: Timestamp.now(),
                 result: data.response
               });
-              // Save transform outputs to videos library so they can be upscaled.
-              // Upscale outputs are intentionally NOT saved here — already-upscaled
-              // videos must not appear as candidates for further upscaling.
-              if (op.type === "transform") {
+              // Save all LRO outputs to the videos library for reuse.
+              // isUpscaleOutput: true on upscale results → UpscalePanel filters
+              // them out server-side so already-upscaled videos can't be re-upscaled.
+              if (op.type === "upscale" || op.type === "transform") {
                 const outputGcsUri = data.response?.videos?.[0]?.gcsUri;
                 if (outputGcsUri) {
                   await addDoc(collection(db, "videos"), {
-                    name: `Transform output`,
+                    name: op.type === "upscale" ? "Upscale output" : "Transform output",
                     url: gcsToFirebaseUrl(outputGcsUri),
                     type: "video/mp4",
-                    source: "transform_output",
+                    isUpscaleOutput: op.type === "upscale",
                     projectId: op.projectId,
                     createdAt: Timestamp.now(),
                   });

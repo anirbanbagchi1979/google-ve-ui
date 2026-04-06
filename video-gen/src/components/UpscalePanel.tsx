@@ -95,6 +95,7 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
       const snap = await getDocs(query(
         collection(db, "videos"),
         where("projectId", "==", currentProjectId),
+        where("isUpscaleOutput", "==", false),
         orderBy("createdAt", "desc"),
         limit(PAGE_SIZE)
       ));
@@ -115,6 +116,7 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
       const snap = await getDocs(query(
         collection(db, "videos"),
         where("projectId", "==", currentProjectId),
+        where("isUpscaleOutput", "==", false),
         orderBy("createdAt", "desc"),
         startAfter(lastDocRef.current),
         limit(PAGE_SIZE)
@@ -157,6 +159,7 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
             type: file.type,
             size: file.size,
             aspectRatio: detectedRatio,
+            isUpscaleOutput: false,
             projectId: currentProjectId,
             createdAt: serverTimestamp(),
           });
