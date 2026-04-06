@@ -2,11 +2,11 @@
 
 import React from "react";
 import {
-  History,
+  Sparkles,
+  Clapperboard,
+  Gauge,
+  ListChecks,
   Settings,
-  Maximize2,
-  Wand2,
-  Drama,
   ShieldCheck,
 } from "lucide-react";
 
@@ -18,15 +18,15 @@ interface SidebarProps {
 
 const Sidebar = ({ activeView, onSelect, isAdmin }: SidebarProps) => {
   const items = [
-    { id: "upscale", icon: <Maximize2 size={20} />, label: "4K Upscale" },
-    { id: "transform", icon: <Wand2 size={20} />, label: "Transform" },
-    { id: "perf", icon: <Drama size={20} />, label: "Performance" },
-    { id: "tasks", icon: <History size={20} />, label: "Tasks" },
+    { id: "upscale",    icon: <Sparkles size={20} />,     label: "4K Upscale" },
+    { id: "transform",  icon: <Clapperboard size={20} />, label: "Transform" },
+    { id: "perf",       icon: <Gauge size={20} />,        label: "Performance" },
+    { id: "tasks",      icon: <ListChecks size={20} />,   label: "Tasks" },
   ];
 
   const bottomItems = [
-    { id: "settings", icon: <Settings size={20} />, label: "Settings" },
-    { id: "admin", icon: <ShieldCheck size={20} />, label: "Admin" },
+    { id: "settings", icon: <Settings size={20} />,   label: "Settings" },
+    { id: "admin",    icon: <ShieldCheck size={20} />, label: "Admin" },
   ];
 
   return (
