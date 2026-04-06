@@ -12,7 +12,7 @@ import SettingsPanel from "@/components/SettingsPanel";
 import UpscalePanel from "@/components/UpscalePanel";
 import TransformPanel from "@/components/TransformPanel";
 import AdminPanel from "@/components/AdminPanel";
-import { Settings } from "lucide-react";
+import { Settings, ShieldCheck } from "lucide-react";
 import { logout } from "@/lib/auth";
 import { ConfigProvider } from "@/context/ConfigContext";
 import { useAuth } from "@/context/AuthContext";
@@ -47,7 +47,7 @@ const AppContent = () => {
     <Navbar />
     <ProjectBar />
     <main className="flex flex-1 bg-slate-100 overflow-hidden text-slate-900">
-      <Sidebar activeView={activeView} onSelect={setActiveView} isAdmin={isAdmin} />
+      <Sidebar activeView={activeView} onSelect={setActiveView} />
 
       <div className="flex-1 flex flex-col relative overflow-hidden">
         <div className="flex-1 flex overflow-hidden">
@@ -91,8 +91,14 @@ const AppContent = () => {
                    <p className="text-sm text-slate-400 font-medium">Use the center panel to modify project environment variables, regions, and GCS buckets.</p>
                  </div>
               </div>
-            ) : activeView === "admin" && isAdmin ? (
-              <AdminPanel />
+            ) : activeView === "admin" ? (
+              isAdmin ? <AdminPanel /> : (
+                <div className="flex-1 flex flex-col items-center justify-center gap-3 p-8 text-center">
+                  <ShieldCheck size={32} className="text-slate-300" />
+                  <p className="text-sm font-bold text-slate-600">Admin Access Only</p>
+                  <p className="text-xs text-slate-400">You don&apos;t have permission to access this area.</p>
+                </div>
+              )
             ) : (
               <div className="flex-1 flex items-center justify-center text-slate-400 font-medium uppercase tracking-widest text-[10px]">
                 View Under Development

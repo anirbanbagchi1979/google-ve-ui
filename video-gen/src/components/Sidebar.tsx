@@ -53,25 +53,23 @@ const Sidebar = ({ activeView, onSelect, isAdmin }: SidebarProps) => {
         ))}
       </div>
       
-      {isAdmin && (
-        <button
-          onClick={() => onSelect("admin")}
-          className={`flex flex-col items-center gap-1.5 transition-all group mt-auto ${
-            activeView === "admin" ? "text-slate-800" : "text-slate-400 hover:text-slate-600"
-          }`}
-        >
-          <div className={`p-2.5 rounded-xl transition-all duration-300 ${
-            activeView === "admin"
-              ? "bg-slate-100 text-slate-800 shadow-sm ring-1 ring-slate-200"
-              : "bg-transparent group-hover:bg-slate-50"
-          }`}>
-            <ShieldCheck size={20} />
-          </div>
-          <span className={`text-[9px] font-bold uppercase tracking-widest ${
-            activeView === "admin" ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-          }`}>Admin</span>
-        </button>
-      )}
+      <button
+        onClick={() => onSelect("admin")}
+        className={`flex flex-col items-center gap-1.5 transition-all group mt-auto ${
+          activeView === "admin" ? "text-slate-800" : "text-slate-400 hover:text-slate-600"
+        }`}
+      >
+        <div className={`p-2.5 rounded-xl transition-all duration-300 ${
+          activeView === "admin"
+            ? "bg-slate-100 text-slate-800 shadow-sm ring-1 ring-slate-200"
+            : "bg-transparent group-hover:bg-slate-50"
+        }`}>
+          <ShieldCheck size={20} />
+        </div>
+        <span className={`text-[9px] font-bold uppercase tracking-widest ${
+          activeView === "admin" ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+        }`}>Admin</span>
+      </button>
       <button className="text-slate-400 hover:text-slate-900 p-2 mt-2">
         <User size={24} />
       </button>
