@@ -400,9 +400,15 @@ const OperationsPanel = ({ operations, addLog, onVideoSelect, onStatusUpdate }: 
                                 muted
                                 playsInline
                               />
-                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity">
-                                <Video size={14} className="text-white" />
+                              {/* Always-visible compare pill */}
+                              <div className="absolute bottom-0 inset-x-0 flex items-center justify-center py-1 bg-gradient-to-t from-black/70 to-transparent">
+                                <span className="flex items-center gap-1 text-[9px] font-bold text-white/90 tracking-wide">
+                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3"/><path d="M16 3h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+                                  Compare
+                                </span>
                               </div>
+                              {/* Hover brighten */}
+                              <div className="absolute inset-0 bg-white/5 opacity-0 group-hover/thumb:opacity-100 transition-opacity" />
                             </div>
                           )}
                           {displayUri && op.status === "DONE" && (
