@@ -11,6 +11,7 @@ import OperationsPanel from "@/components/OperationsPanel";
 import SettingsPanel from "@/components/SettingsPanel";
 import UpscalePanel from "@/components/UpscalePanel";
 import TransformPanel from "@/components/TransformPanel";
+import AdminPanel from "@/components/AdminPanel";
 import { Settings } from "lucide-react";
 import { logout } from "@/lib/auth";
 import { ConfigProvider } from "@/context/ConfigContext";
@@ -18,8 +19,14 @@ import { useAuth } from "@/context/AuthContext";
 import { ProjectProvider, useProject } from "@/context/ProjectContext";
 import LoginPage from "@/components/LoginPage";
 import { useGenerationFlow } from "@/hooks/useGenerationFlow";
+import { db } from "@/lib/firebase";
+import { collection, getDocs, query, where } from "firebase/firestore";
+
+const ADMIN_EMAILS = ["anirban.bagchi@gmail.com", "bagchi@google.com"];
 
 const AppContent = () => {
+  const { user } = useAuth();
+  const isAdmin = ADMIN_EMAILS.includes(user?.email ?? "");
   const [activeView, setActiveView] = useState("tasks");
   const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
   const [previewOriginalVideoUrl, setPreviewOriginalVideoUrl] = useState<string | null>(null);
@@ -40,7 +47,7 @@ const AppContent = () => {
     <Navbar />
     <ProjectBar />
     <main className="flex flex-1 bg-slate-100 overflow-hidden text-slate-900">
-      <Sidebar activeView={activeView} onSelect={setActiveView} />
+      <Sidebar activeView={activeView} onSelect={setActiveView} isAdmin={isAdmin} />
 
       <div className="flex-1 flex flex-col relative overflow-hidden">
         <div className="flex-1 flex overflow-hidden">
@@ -84,6 +91,8 @@ const AppContent = () => {
                    <p className="text-sm text-slate-400 font-medium">Use the center panel to modify project environment variables, regions, and GCS buckets.</p>
                  </div>
               </div>
+            ) : activeView === "admin" && isAdmin ? (
+              <AdminPanel />
             ) : (
               <div className="flex-1 flex items-center justify-center text-slate-400 font-medium uppercase tracking-widest text-[10px]">
                 View Under Development
@@ -107,18 +116,26 @@ const AppContent = () => {
   );
 };
 
-const ALLOWED_EMAILS = [
-  "anirban.bagchi@gmail.com",
-  "bagchi@google.com",
-  "balajikr@google.com",
-  "kartikjain@google.com",
-  "patpoon@google.com",
-];
-
 const AuthGate = () => {
   const { user, loading, setToken } = useAuth();
+  const [allowlistChecked, setAllowlistChecked] = useState(false);
+  const [isAllowed, setIsAllowed] = useState(false);
 
-  if (loading) return (
+  useEffect(() => {
+    if (!user) return;
+    // Admins are always allowed without a Firestore round-trip
+    if (ADMIN_EMAILS.includes(user.email ?? "")) {
+      setIsAllowed(true);
+      setAllowlistChecked(true);
+      return;
+    }
+    // Everyone else: check Firestore allowlist
+    getDocs(query(collection(db, "allowlist"), where("email", "==", user.email ?? "")))
+      .then(snap => { setIsAllowed(!snap.empty); setAllowlistChecked(true); })
+      .catch(() => { setIsAllowed(false); setAllowlistChecked(true); });
+  }, [user]);
+
+  if (loading || (user && !allowlistChecked)) return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center">
       <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
     </div>
@@ -126,7 +143,7 @@ const AuthGate = () => {
 
   if (!user) return <LoginPage />;
 
-  if (!ALLOWED_EMAILS.includes(user.email ?? "")) {
+  if (!isAllowed) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-6 px-4">
         <div className="w-14 h-14 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center">
