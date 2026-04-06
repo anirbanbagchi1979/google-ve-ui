@@ -6,8 +6,7 @@ import { useProject } from "@/context/ProjectContext";
 import { signInWithGoogle, logout } from "@/lib/auth";
 import { LogOut, User, ChevronDown, ShieldCheck, Check, Plus, FolderOpen } from "lucide-react";
 import AppIcon from "@/components/AppIcon";
-
-const ADMIN_EMAILS = ["anirban.bagchi@gmail.com", "bagchi@google.com"];
+import { ADMIN_EMAILS } from "@/constants/admin";
 
 interface NavbarProps {
   onAdminClick?: () => void;

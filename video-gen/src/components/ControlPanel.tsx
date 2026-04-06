@@ -20,10 +20,14 @@ import {
 } from "lucide-react";
 import { storage, db } from "@/lib/firebase";
 import { ref, listAll, getDownloadURL, uploadBytesResumable } from "firebase/storage";
-import { collection, addDoc, serverTimestamp, query, getDocs, orderBy, limit, where, startAfter, QueryDocumentSnapshot } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { useVideoLibrary } from "@/hooks/useVideoLibrary";
+import { LoadMoreButton } from "@/components/ui/LoadMoreButton";
+import { SectionLabel } from "@/components/ui/SectionLabel";
 import { useConfig } from "@/context/ConfigContext";
 import { useProject } from "@/context/ProjectContext";
 import { formatBytes, detectAspectRatioFromFile, validateVideoConstraints } from "@/utils/time";
+import { getGcsUri } from "@/utils/gcs";
 
 interface VideoAsset {
   id: string;
@@ -39,41 +43,16 @@ interface ControlPanelProps {
   onGenerate?: (payload: any, isLongRunning?: boolean) => void;
 }
 
-const getGcsUri = (url: string | null) => {
-  if (!url) return "";
-  if (url.startsWith("gs://")) return url;
-  if (url.includes("firebasestorage.googleapis.com")) {
-    try {
-      // Decode the URL and extract the bucket and path
-      const decodedUrl = decodeURIComponent(url);
-      const bucketMatch = url.match(/\/b\/([^\/]+)/);
-      const pathMatch = decodedUrl.match(/\/o\/([^\?]+)/);
-      
-      if (bucketMatch && pathMatch) {
-        return `gs://${bucketMatch[1]}/${pathMatch[1]}`;
-      }
-    } catch (e) {
-      console.error("Error parsing Firebase URL", e);
-    }
-  }
-  return `gs://video-gen-assets/${url.split("/").pop()?.split("?")[0]}`;
-};
-
 const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
   const { config } = useConfig();
   const { currentProjectId } = useProject();
   const [activeTab, setActiveTab] = useState<"Image" | "Video" | "Audio">("Video");
   const [assetFilter, setAssetFilter] = useState<"Image" | "Video">("Video");
-  
-  const PAGE_SIZE = 4;
+
   // Asset States
   const [images, setImages] = useState<string[]>([]);
-  const [videos, setVideos] = useState<VideoAsset[]>([]);
-  const [loadingAssets, setLoadingAssets] = useState(true);
+  const { videos, loadingAssets, loadingMore: loadingMoreVideos, hasMore: hasMoreVideos, fetchVideos, loadMoreVideos } = useVideoLibrary(currentProjectId);
   const [assetError, setAssetError] = useState<string | null>(null);
-  const [loadingMoreVideos, setLoadingMoreVideos] = useState(false);
-  const [hasMoreVideos, setHasMoreVideos] = useState(false);
-  const lastVideoDocRef = useRef<QueryDocumentSnapshot | null>(null);
 
   // Video Upload States
   const [isUploading, setIsUploading] = useState(false);
@@ -101,61 +80,13 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
     }
   }, []);
 
-  const fetchVideos = useCallback(async () => {
-    if (!currentProjectId) { setVideos([]); return; }
-    lastVideoDocRef.current = null;
-    try {
-      const snap = await getDocs(query(
-        collection(db, "videos"),
-        where("projectId", "==", currentProjectId),
-        orderBy("createdAt", "desc"),
-        limit(PAGE_SIZE)
-      ));
-      lastVideoDocRef.current = snap.docs[snap.docs.length - 1] ?? null;
-      setHasMoreVideos(snap.docs.length === PAGE_SIZE);
-      setVideos(snap.docs.map(doc => {
-        const data = doc.data();
-        return { id: doc.id, name: data.name || "Untitled", url: data.url || "", size: data.size || undefined, aspectRatio: data.aspectRatio || undefined, createdAt: data.createdAt };
-      }));
-    } catch (err) {
-      console.error("Error fetching videos", err);
-    }
-  }, [currentProjectId]);
-
-  const loadMoreVideos = async () => {
-    if (!currentProjectId || !lastVideoDocRef.current || loadingMoreVideos) return;
-    setLoadingMoreVideos(true);
-    try {
-      const snap = await getDocs(query(
-        collection(db, "videos"),
-        where("projectId", "==", currentProjectId),
-        orderBy("createdAt", "desc"),
-        startAfter(lastVideoDocRef.current),
-        limit(PAGE_SIZE)
-      ));
-      lastVideoDocRef.current = snap.docs[snap.docs.length - 1] ?? lastVideoDocRef.current;
-      setHasMoreVideos(snap.docs.length === PAGE_SIZE);
-      setVideos(prev => [...prev, ...snap.docs.map(doc => {
-        const data = doc.data();
-        return { id: doc.id, name: data.name || "Untitled", url: data.url || "", size: data.size || undefined, aspectRatio: data.aspectRatio || undefined, createdAt: data.createdAt };
-      })]);
-    } catch (err) {
-      console.error("Error loading more videos", err);
-    } finally {
-      setLoadingMoreVideos(false);
-    }
-  };
-
   const loadAllAssets = useCallback(async () => {
-    setLoadingAssets(true);
     setAssetError(null);
     try {
       await Promise.all([fetchImages(), fetchVideos()]);
     } catch (err) {
       console.error("Asset load error", err);
       setAssetError("Failed to load some assets.");
-    } finally {
-      setLoadingAssets(false);
     }
   }, [fetchImages, fetchVideos]);
 
@@ -393,9 +324,7 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
         {/* Dynamic Image/Video Reuse Section */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-               Recent Assets
-            </h3>
+            <SectionLabel>Recent Assets</SectionLabel>
             <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
                <button 
                 onClick={() => activeTab !== "Image" && setAssetFilter("Video")}
@@ -485,16 +414,7 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
               ) : (
                 <p className="text-[11px] text-slate-400 text-center py-6">No videos</p>
               )}
-              {hasMoreVideos && (
-                <button
-                  onClick={loadMoreVideos}
-                  disabled={loadingMoreVideos}
-                  className="w-full py-2 mt-1 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-500 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
-                >
-                  {loadingMoreVideos ? <Loader2 size={10} className="animate-spin" /> : null}
-                  {loadingMoreVideos ? "Loading…" : "Load more"}
-                </button>
-              )}
+              {hasMoreVideos && <LoadMoreButton loading={loadingMoreVideos} onClick={loadMoreVideos} />}
             </div>
             <div className="flex-1 space-y-3">
               <div className="space-y-1">

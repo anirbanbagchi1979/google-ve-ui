@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useCallback, useEffect } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
   Upload,
   Video as VideoIcon,
@@ -13,29 +13,21 @@ import {
 } from "lucide-react";
 import { storage, db } from "@/lib/firebase";
 import { ref, listAll, getDownloadURL, uploadBytesResumable } from "firebase/storage";
-import { collection, getDocs, query, limit, where, addDoc, serverTimestamp, orderBy, startAfter, QueryDocumentSnapshot } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, where } from "firebase/firestore";
 import { useConfig } from "@/context/ConfigContext";
 import { useProject } from "@/context/ProjectContext";
 import { formatBytes, detectAspectRatioFromFile, validateVideoConstraints } from "@/utils/time";
+import { getGcsUri } from "@/utils/gcs";
+import { useVideoLibrary } from "@/hooks/useVideoLibrary";
+import { PanelHeader } from "@/components/ui/PanelHeader";
+import { VideoThumbnailCard } from "@/components/ui/VideoThumbnailCard";
+import { LoadMoreButton } from "@/components/ui/LoadMoreButton";
+import { SectionLabel } from "@/components/ui/SectionLabel";
 
 interface UpscalePanelProps {
   onGenerate?: (payload: any, isLongRunning: boolean) => void;
   onVideoSelect?: (url: string | null, originalUrl?: string | null) => void;
 }
-
-const getGcsUri = (url: string | null) => {
-  if (!url) return "";
-  if (url.startsWith("gs://")) return url;
-  if (url.includes("firebasestorage.googleapis.com")) {
-    try {
-      const decodedUrl = decodeURIComponent(url);
-      const bucketMatch = url.match(/\/b\/([^/]+)/);
-      const pathMatch = decodedUrl.match(/\/o\/([^?]+)/);
-      if (bucketMatch && pathMatch) return `gs://${bucketMatch[1]}/${pathMatch[1]}`;
-    } catch (e) {}
-  }
-  return `gs://video-gen-assets/${url.split("/").pop()?.split("?")[0]}`;
-};
 
 const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
   const { config } = useConfig();
@@ -43,12 +35,10 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Video library
-  const PAGE_SIZE = 4;
-  const [videos, setVideos] = useState<{ id: string; name: string; url: string; size?: number; aspectRatio?: string }[]>([]);
-  const [loadingAssets, setLoadingAssets] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const lastDocRef = useRef<QueryDocumentSnapshot | null>(null);
+  const { videos, setVideos, loadingAssets, loadingMore, hasMore, fetchVideos, loadMoreVideos } = useVideoLibrary(
+    currentProjectId,
+    [where("isUpscaleOutput", "==", false)]
+  );
 
   // Selection
   const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
@@ -87,51 +77,7 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
   const [confirmed, setConfirmed] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const fetchVideos = useCallback(async () => {
-    if (!currentProjectId) { setVideos([]); setLoadingAssets(false); return; }
-    setLoadingAssets(true);
-    lastDocRef.current = null;
-    try {
-      const snap = await getDocs(query(
-        collection(db, "videos"),
-        where("projectId", "==", currentProjectId),
-        where("isUpscaleOutput", "==", false),
-        orderBy("createdAt", "desc"),
-        limit(PAGE_SIZE)
-      ));
-      lastDocRef.current = snap.docs[snap.docs.length - 1] ?? null;
-      setHasMore(snap.docs.length === PAGE_SIZE);
-      setVideos(snap.docs.map(d => ({ id: d.id, name: d.data().name || "Untitled", url: d.data().url || "", size: d.data().size || undefined, aspectRatio: d.data().aspectRatio || undefined })));
-    } catch (e) {
-      console.error("Error fetching videos", e);
-    } finally {
-      setLoadingAssets(false);
-    }
-  }, [currentProjectId]);
-
-  const loadMoreVideos = async () => {
-    if (!currentProjectId || !lastDocRef.current || loadingMore) return;
-    setLoadingMore(true);
-    try {
-      const snap = await getDocs(query(
-        collection(db, "videos"),
-        where("projectId", "==", currentProjectId),
-        where("isUpscaleOutput", "==", false),
-        orderBy("createdAt", "desc"),
-        startAfter(lastDocRef.current),
-        limit(PAGE_SIZE)
-      ));
-      lastDocRef.current = snap.docs[snap.docs.length - 1] ?? lastDocRef.current;
-      setHasMore(snap.docs.length === PAGE_SIZE);
-      setVideos(prev => [...prev, ...snap.docs.map(d => ({ id: d.id, name: d.data().name || "Untitled", url: d.data().url || "", size: d.data().size || undefined, aspectRatio: d.data().aspectRatio || undefined }))]);
-    } catch (e) {
-      console.error("Error loading more videos", e);
-    } finally {
-      setLoadingMore(false);
-    }
-  };
-
-  useEffect(() => { fetchVideos(); }, [fetchVideos]);
+  useEffect(() => { fetchVideos(); }, [fetchVideos, currentProjectId]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -217,16 +163,7 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
 
   return (
     <div className="flex flex-col h-full bg-white overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center gap-2.5 px-4 py-3 bg-blue-50 border-b border-blue-100 shrink-0">
-        <div className="w-7 h-7 bg-blue-500 rounded-lg flex items-center justify-center shrink-0">
-          <Maximize2 size={13} className="text-white" />
-        </div>
-        <div>
-          <p className="text-[12px] font-bold text-blue-900">4K Upscale</p>
-          <p className="text-[10px] text-blue-500">Upload or select a video, then submit to upscale</p>
-        </div>
-      </div>
+      <PanelHeader icon={<Maximize2 size={13} />} title="4K Upscale" subtitle="Upload or select a video, then submit to upscale" />
 
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
 
@@ -283,7 +220,7 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
 
         {/* Media library — videos only */}
         <div className="space-y-2">
-          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Media Assets</p>
+          <SectionLabel>Media Assets</SectionLabel>
           {loadingAssets ? (
             <div className="flex items-center justify-center py-6">
               <Loader2 size={18} className="text-slate-300 animate-spin" />
@@ -293,56 +230,21 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
           ) : (
             <div className="grid grid-cols-2 gap-2">
               {videos.map(vid => (
-                <div
+                <VideoThumbnailCard
                   key={vid.id}
+                  vid={vid}
+                  isSelected={selectedUrl === vid.url}
                   onClick={() => selectVideo(vid.url)}
-                  className={`relative aspect-video bg-black rounded-lg overflow-hidden border-2 cursor-pointer transition-all group active:scale-95
-                    ${selectedUrl === vid.url ? "border-blue-500 ring-2 ring-blue-500/20" : "border-slate-200 hover:border-slate-300"}`}
-                >
-                  <video
-                    src={vid.url + "#t=0.5"}
-                    className="w-full h-full object-contain"
-                    preload="metadata"
-                    muted
-                    playsInline
-                    onMouseEnter={e => e.currentTarget.play()}
-                    onMouseLeave={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0.5; }}
-                  />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <PlayCircle size={20} className="text-white" />
-                  </div>
-                  {vid.size && (
-                    <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-black/60 text-white text-[9px] font-bold rounded">
-                      {formatBytes(vid.size)}
-                    </div>
-                  )}
-                  {vid.aspectRatio && (
-                    <div className="absolute top-1 right-1 px-1.5 py-0.5 bg-black/60 text-white text-[9px] font-bold rounded">
-                      {vid.aspectRatio}
-                    </div>
-                  )}
-                  {selectedUrl === vid.url && (
-                    <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-blue-500 text-white text-[9px] font-bold rounded">✓</div>
-                  )}
-                </div>
+                />
               ))}
             </div>
           )}
-          {hasMore && (
-            <button
-              onClick={loadMoreVideos}
-              disabled={loadingMore}
-              className="w-full py-2 mt-1 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-500 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
-            >
-              {loadingMore ? <Loader2 size={12} className="animate-spin" /> : null}
-              {loadingMore ? "Loading…" : "Load more"}
-            </button>
-          )}
+          {hasMore && <LoadMoreButton loading={loadingMore} onClick={loadMoreVideos} />}
         </div>
 
         {/* Options */}
         <div className="space-y-3 pt-1 border-t border-slate-100">
-          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Output Settings</p>
+          <SectionLabel>Output Settings</SectionLabel>
 
           {/* Aspect Ratio */}
           <div className="space-y-1.5">

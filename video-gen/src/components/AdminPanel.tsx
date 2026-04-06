@@ -5,8 +5,9 @@ import { Shield, Plus, Trash2, Loader2, CheckCircle2, AlertCircle } from "lucide
 import { collection, getDocs, addDoc, deleteDoc, doc, query, orderBy, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
-
-const ADMIN_EMAILS = ["anirban.bagchi@gmail.com", "bagchi@google.com"];
+import { ADMIN_EMAILS } from "@/constants/admin";
+import { PanelHeader } from "@/components/ui/PanelHeader";
+import { SectionLabel } from "@/components/ui/SectionLabel";
 
 interface AllowedUser {
   id: string;
@@ -93,16 +94,7 @@ const AdminPanel = () => {
 
   return (
     <div className="flex flex-col flex-1 bg-white overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center gap-2.5 px-4 py-3 bg-blue-50 border-b border-blue-100 shrink-0">
-        <div className="w-7 h-7 bg-blue-500 rounded-lg flex items-center justify-center shrink-0">
-          <Shield size={13} className="text-white" />
-        </div>
-        <div>
-          <p className="text-[12px] font-bold text-blue-900">Admin — Access Control</p>
-          <p className="text-[10px] text-blue-600/60">Manage who can log into this app</p>
-        </div>
-      </div>
+      <PanelHeader icon={<Shield size={13} />} title="Admin — Access Control" subtitle="Manage who can log into this app" />
 
       {/* Feedback */}
       {feedback && (
@@ -118,7 +110,7 @@ const AdminPanel = () => {
 
       {/* Add user — fixed */}
       <div className="px-4 pt-4 pb-3 space-y-2 shrink-0 border-b border-slate-100">
-        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Add user</p>
+        <SectionLabel>Add user</SectionLabel>
         <div className="flex gap-2">
           <input
             type="email"
@@ -141,9 +133,7 @@ const AdminPanel = () => {
 
       {/* Allowed users list — scrollable */}
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
-        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-          Allowed users ({ADMIN_EMAILS.length + users.length})
-        </p>
+        <SectionLabel>Allowed users ({ADMIN_EMAILS.length + users.length})</SectionLabel>
 
         {/* Hardcoded admins */}
         {ADMIN_EMAILS.map(email => (

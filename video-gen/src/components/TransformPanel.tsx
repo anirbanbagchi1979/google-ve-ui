@@ -14,11 +14,16 @@ import {
 } from "lucide-react";
 import { storage, db } from "@/lib/firebase";
 import { ref, getDownloadURL, uploadBytesResumable } from "firebase/storage";
-import { collection, getDocs, query, limit, where, addDoc, serverTimestamp, orderBy, startAfter, QueryDocumentSnapshot } from "firebase/firestore";
+import { collection, getDocs, query, limit, where, addDoc, serverTimestamp, orderBy } from "firebase/firestore";
+import { useVideoLibrary } from "@/hooks/useVideoLibrary";
 import { useConfig } from "@/context/ConfigContext";
 import { useProject } from "@/context/ProjectContext";
 import { getGcsUri } from "@/utils/gcs";
 import { formatBytes, detectAspectRatioFromFile, validateVideoConstraints } from "@/utils/time";
+import { PanelHeader } from "@/components/ui/PanelHeader";
+import { VideoThumbnailCard } from "@/components/ui/VideoThumbnailCard";
+import { LoadMoreButton } from "@/components/ui/LoadMoreButton";
+import { SectionLabel } from "@/components/ui/SectionLabel";
 
 interface TransformPanelProps {
   onGenerate?: (payload: any, isLongRunning: boolean) => void;
@@ -32,12 +37,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
   const imageFileInputRef = useRef<HTMLInputElement>(null);
   const maskFileInputRef = useRef<HTMLInputElement>(null);
 
-  const PAGE_SIZE = 4;
-  const [videos, setVideos] = useState<{ id: string; name: string; url: string; size?: number; aspectRatio?: string }[]>([]);
-  const [loadingAssets, setLoadingAssets] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const lastDocRef = useRef<QueryDocumentSnapshot | null>(null);
+  const { videos, setVideos, loadingAssets, loadingMore, hasMore, fetchVideos, loadMoreVideos } = useVideoLibrary(currentProjectId);
 
   const [selectedVideoUrl, setSelectedVideoUrl] = useState<string | null>(null);
   const [controlImageUrl, setControlImageUrl] = useState<string | null>(null);
@@ -68,49 +68,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
   const [confirmed, setConfirmed] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const fetchVideos = useCallback(async () => {
-    if (!currentProjectId) { setVideos([]); setLoadingAssets(false); return; }
-    setLoadingAssets(true);
-    lastDocRef.current = null;
-    try {
-      const snap = await getDocs(query(
-        collection(db, "videos"),
-        where("projectId", "==", currentProjectId),
-        orderBy("createdAt", "desc"),
-        limit(PAGE_SIZE)
-      ));
-      lastDocRef.current = snap.docs[snap.docs.length - 1] ?? null;
-      setHasMore(snap.docs.length === PAGE_SIZE);
-      setVideos(snap.docs.map(d => ({ id: d.id, name: d.data().name || "Untitled", url: d.data().url || "", size: d.data().size || undefined, aspectRatio: d.data().aspectRatio || undefined })));
-    } catch (e) {
-      console.error("Error fetching videos", e);
-    } finally {
-      setLoadingAssets(false);
-    }
-  }, [currentProjectId]);
-
-  const loadMoreVideos = async () => {
-    if (!currentProjectId || !lastDocRef.current || loadingMore) return;
-    setLoadingMore(true);
-    try {
-      const snap = await getDocs(query(
-        collection(db, "videos"),
-        where("projectId", "==", currentProjectId),
-        orderBy("createdAt", "desc"),
-        startAfter(lastDocRef.current),
-        limit(PAGE_SIZE)
-      ));
-      lastDocRef.current = snap.docs[snap.docs.length - 1] ?? lastDocRef.current;
-      setHasMore(snap.docs.length === PAGE_SIZE);
-      setVideos(prev => [...prev, ...snap.docs.map(d => ({ id: d.id, name: d.data().name || "Untitled", url: d.data().url || "", size: d.data().size || undefined, aspectRatio: d.data().aspectRatio || undefined }))]);
-    } catch (e) {
-      console.error("Error loading more videos", e);
-    } finally {
-      setLoadingMore(false);
-    }
-  };
-
-  useEffect(() => { fetchVideos(); }, [fetchVideos]);
+  useEffect(() => { fetchVideos(); }, [fetchVideos, currentProjectId]);
 
   const fetchMaskVideos = useCallback(async () => {
     setLoadingMasks(true);
@@ -286,22 +244,13 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
 
   return (
     <div className="flex flex-col h-full bg-white overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center gap-2.5 px-4 py-3 bg-blue-50 border-b border-blue-100 shrink-0">
-        <div className="w-7 h-7 bg-blue-500 rounded-lg flex items-center justify-center shrink-0">
-          <Wand2 size={13} className="text-white" />
-        </div>
-        <div>
-          <p className="text-[12px] font-bold text-blue-900">Video Transform</p>
-          <p className="text-[10px] text-blue-500">Select a video, set controls, and transform</p>
-        </div>
-      </div>
+      <PanelHeader icon={<Wand2 size={13} />} title="Video Transform" subtitle="Select a video, set controls, and transform" />
 
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
 
         {/* Input Video */}
         <div className="space-y-2">
-          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Input Video</p>
+          <SectionLabel>Input Video</SectionLabel>
           <div
             onClick={() => !isUploadingVideo && !selectedVideoUrl && videoFileInputRef.current?.click()}
             className={`relative aspect-video rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-3 transition-colors
@@ -348,7 +297,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
         {/* Media library — only shown when nothing selected */}
         {!selectedVideoUrl && (
           <div className="space-y-2">
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Media Library</p>
+            <SectionLabel>Media Library</SectionLabel>
             {loadingAssets ? (
               <div className="flex items-center justify-center py-6">
                 <Loader2 size={18} className="text-slate-300 animate-spin" />
@@ -358,47 +307,15 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
             ) : (
               <div className="grid grid-cols-2 gap-2">
                 {videos.map(vid => (
-                  <div
+                  <VideoThumbnailCard
                     key={vid.id}
+                    vid={vid}
                     onClick={() => { setSelectedVideoUrl(vid.url); onVideoSelect?.(vid.url); }}
-                    className="relative aspect-video bg-black rounded-lg overflow-hidden border-2 border-slate-200 hover:border-slate-300 cursor-pointer transition-all group active:scale-95"
-                  >
-                    <video
-                      src={vid.url + "#t=0.5"}
-                      className="w-full h-full object-contain"
-                      preload="metadata"
-                      muted
-                      playsInline
-                      onMouseEnter={e => e.currentTarget.play()}
-                      onMouseLeave={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0.5; }}
-                    />
-                    {vid.size && (
-                      <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-black/60 text-white text-[9px] font-bold rounded pointer-events-none">
-                        {formatBytes(vid.size)}
-                      </div>
-                    )}
-                    {vid.aspectRatio && (
-                      <div className="absolute top-1 right-1 px-1.5 py-0.5 bg-black/60 text-white text-[9px] font-bold rounded pointer-events-none">
-                        {vid.aspectRatio}
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <PlayCircle size={20} className="text-white" />
-                    </div>
-                  </div>
+                  />
                 ))}
               </div>
             )}
-            {hasMore && (
-              <button
-                onClick={loadMoreVideos}
-                disabled={loadingMore}
-                className="w-full py-2 mt-1 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-500 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
-              >
-                {loadingMore ? <Loader2 size={12} className="animate-spin" /> : null}
-                {loadingMore ? "Loading…" : "Load more"}
-              </button>
-            )}
+            {hasMore && <LoadMoreButton loading={loadingMore} onClick={loadMoreVideos} />}
             <button
               onClick={() => videoFileInputRef.current?.click()}
               className="w-full py-2 border border-dashed border-slate-300 rounded-lg text-[11px] font-semibold text-slate-500 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5"
@@ -411,9 +328,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
         {/* Control Image (optional) */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Control Image <span className="text-slate-400 normal-case font-normal">(optional)</span>
-            </p>
+            <SectionLabel>Control Image <span className="text-slate-400 normal-case font-normal">(optional)</span></SectionLabel>
             {controlImageUrl && (
               <button onClick={() => setControlImageUrl(null)} className="text-[10px] text-red-400 hover:text-red-600 font-semibold transition-colors">
                 Remove
@@ -452,9 +367,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
         {/* Mask Video (optional) */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Mask Video <span className="text-slate-400 normal-case font-normal">(optional)</span>
-            </p>
+            <SectionLabel>Mask Video <span className="text-slate-400 normal-case font-normal">(optional)</span></SectionLabel>
             {maskVideoUrl && (
               <button onClick={() => { setMaskVideoUrl(null); setShowMaskLibrary(false); }} className="text-[10px] text-red-400 hover:text-red-600 font-semibold transition-colors">
                 Remove
@@ -563,7 +476,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
 
         {/* Control Prompt */}
         <div className="space-y-2">
-          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Control Prompt</p>
+          <SectionLabel>Control Prompt</SectionLabel>
           <textarea
             value={prompt}
             onChange={e => setPrompt(e.target.value)}
@@ -575,7 +488,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
         {/* Control Strength */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Control Strength</p>
+            <SectionLabel>Control Strength</SectionLabel>
             <span className="text-[12px] font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
               {strength.toFixed(2)}
             </span>
@@ -598,9 +511,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
 
         {/* Diffusion Steps */}
         <div className="space-y-2">
-          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-            Diffusion Steps <span className="text-slate-400 normal-case font-normal">(1–250)</span>
-          </p>
+          <SectionLabel>Diffusion Steps <span className="text-slate-400 normal-case font-normal">(1–250)</span></SectionLabel>
           <input
             type="number"
             min="1"
@@ -614,7 +525,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
 
         {/* Compression Quality */}
         <div className="space-y-2">
-          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Compression Quality</p>
+          <SectionLabel>Compression Quality</SectionLabel>
           <div className="flex gap-2">
             {(["optimized", "lossless"] as const).map(q => (
               <button

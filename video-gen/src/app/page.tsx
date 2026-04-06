@@ -20,8 +20,7 @@ import LoginPage from "@/components/LoginPage";
 import { useGenerationFlow } from "@/hooks/useGenerationFlow";
 import { db } from "@/lib/firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
-
-const ADMIN_EMAILS = ["anirban.bagchi@gmail.com", "bagchi@google.com"];
+import { ADMIN_EMAILS } from "@/constants/admin";
 
 const AppContent = () => {
   const { user } = useAuth();
