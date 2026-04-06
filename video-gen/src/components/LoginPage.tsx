@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { Zap, Video, Cpu, ArrowRight, Loader2 } from "lucide-react";
+import { Video, Cpu, Maximize2, ArrowRight, Loader2 } from "lucide-react";
+import AppIcon from "@/components/AppIcon";
 import { signInWithGoogle } from "@/lib/auth";
 import { useAuth } from "@/context/AuthContext";
 
@@ -28,9 +29,7 @@ const LoginPage = () => {
       {/* Top bar */}
       <header className="h-11 border-b border-slate-800 flex items-center px-6">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 bg-blue-500 rounded flex items-center justify-center">
-            <Zap size={13} className="text-white" fill="currentColor" />
-          </div>
+          <AppIcon size={24} />
           <span className="text-[13px] font-semibold text-white tracking-tight">Vertex Experimental Flow</span>
           <span className="ml-1 px-1.5 py-0.5 bg-blue-500/20 text-blue-400 text-[9px] font-bold uppercase tracking-widest rounded">Beta</span>
         </div>
@@ -41,8 +40,8 @@ const LoginPage = () => {
         <div className="w-full max-w-md space-y-8">
           {/* Hero */}
           <div className="text-center space-y-4">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-500/10 border border-blue-500/20 rounded-2xl mb-2">
-              <Zap size={32} className="text-blue-400" fill="currentColor" />
+            <div className="mb-2">
+              <AppIcon size={64} />
             </div>
             <h1 className="text-3xl font-bold text-white tracking-tight">
               Vertex Experimental Flow
@@ -57,7 +56,7 @@ const LoginPage = () => {
             {[
               { icon: Video, label: "Veo Video Generation" },
               { icon: Cpu, label: "Vertex AI" },
-              { icon: Zap, label: "4K Upscaling" },
+              { icon: Maximize2, label: "4K Upscaling" },
             ].map(({ icon: Icon, label }) => (
               <div key={label} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-full text-[11px] text-slate-400 font-medium">
                 <Icon size={11} className="text-blue-400" />

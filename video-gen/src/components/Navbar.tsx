@@ -3,7 +3,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { signInWithGoogle, logout } from "@/lib/auth";
-import { LogOut, User, ChevronDown, Zap, ShieldCheck } from "lucide-react";
+import { LogOut, User, ChevronDown, ShieldCheck } from "lucide-react";
+import AppIcon from "@/components/AppIcon";
 
 const ADMIN_EMAILS = ["anirban.bagchi@gmail.com", "bagchi@google.com"];
 
@@ -50,9 +51,7 @@ const Navbar = ({ onAdminClick }: NavbarProps) => {
     <header className="h-14 bg-slate-900 border-b border-slate-700 flex items-center justify-between px-4 shrink-0 z-50">
       {/* Left — branding */}
       <div className="flex items-center gap-2">
-        <div className="w-6 h-6 bg-blue-500 rounded flex items-center justify-center">
-          <Zap size={13} className="text-white" fill="currentColor" />
-        </div>
+        <AppIcon size={24} />
         <span className="text-[13px] font-semibold text-white tracking-tight">
           Vertex Experimental Flow
         </span>
