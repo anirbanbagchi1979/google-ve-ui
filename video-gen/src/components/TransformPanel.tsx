@@ -418,7 +418,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
                     {isUploadingMask ? (
                       <><Loader2 size={12} className="animate-spin" /> {Math.round(maskUploadProgress)}%</>
                     ) : (
-                      <><Upload size={12} /> Upload mask</>
+                      <><Upload size={12} /> Upload Mask Video</>
                     )}
                   </button>
                 </div>
@@ -460,7 +460,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
                     onClick={() => !isUploadingMask && maskFileInputRef.current?.click()}
                     className="w-full py-2 border border-dashed border-slate-300 rounded-lg text-[11px] font-semibold text-slate-500 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5"
                   >
-                    <Upload size={12} /> Upload new mask
+                    <Upload size={12} /> Upload Mask Video
                   </button>
                 </>
               )}
@@ -549,7 +549,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
       <div className="p-4 pb-16 border-t border-slate-100 bg-slate-50 shrink-0 space-y-3">
         {confirmed && (
           <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-semibold px-3 py-2 rounded-lg">
-            <CheckCircle size={14} /> Job submitted! Track progress in the Tasks panel.
+            <CheckCircle size={14} /> Job submitted! Track progress in the Task Monitor.
           </div>
         )}
         {submitError && (

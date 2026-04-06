@@ -221,7 +221,7 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
 
         {/* Media library — videos only */}
         <div className="space-y-2">
-          <SectionLabel>Media Assets</SectionLabel>
+          <SectionLabel>Media Library</SectionLabel>
           {loadingAssets ? (
             <div className="flex items-center justify-center py-6">
               <Loader2 size={18} className="text-slate-300 animate-spin" />
@@ -319,7 +319,7 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
       <div className="p-4 pb-16 border-t border-slate-100 bg-slate-50 shrink-0 space-y-2">
         {confirmed && (
           <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-semibold px-3 py-2 rounded-lg">
-            <CheckCircle size={14} /> Job submitted! Track progress in the Tasks panel.
+            <CheckCircle size={14} /> Job submitted! Track progress in the Task Monitor.
           </div>
         )}
         {submitError && (
