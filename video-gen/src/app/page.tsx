@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import Sidebar from "@/components/Sidebar";
 import Navbar from "@/components/Navbar";
-import ProjectBar from "@/components/ProjectBar";
 import ControlPanel from "@/components/ControlPanel";
 import PreviewArea from "@/components/PreviewArea";
 import DebugConsole from "@/components/DebugConsole";
@@ -45,7 +44,6 @@ const AppContent = () => {
   return (
     <div className="flex flex-col h-screen overflow-hidden font-sans tracking-tight">
     <Navbar onAdminClick={() => setActiveView("admin")} />
-    <ProjectBar />
     <main className="flex flex-1 bg-slate-100 overflow-hidden text-slate-900">
       <Sidebar activeView={activeView} onSelect={setActiveView} />
 
