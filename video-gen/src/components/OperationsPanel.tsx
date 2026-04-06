@@ -18,6 +18,7 @@ import {
   Drama,
   Film,
 } from "lucide-react";
+import { PanelHeader } from "@/components/ui/PanelHeader";
 
 import { useConfig } from "@/context/ConfigContext";
 import { formatBytes } from "@/utils/time";
@@ -226,18 +227,12 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
   return (
     <div className="w-full bg-slate-50 flex flex-col h-full overflow-hidden transition-all duration-300">
       {/* Header */}
-      <div 
-        className="px-6 py-4 bg-slate-100/80 border-b border-slate-200 flex items-center justify-between cursor-pointer hover:bg-slate-200/50 transition-colors shrink-0"
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
-        <div className="flex items-center gap-2">
-          <ListChecks size={18} className="text-blue-500" />
-          <span className="text-[12px] font-bold uppercase tracking-wider text-slate-600">Task Monitor</span>
-          <span className="px-2 py-0.5 bg-blue-500/10 text-blue-600 text-[10px] rounded-full font-bold">
-            {operations.filter(op => op.status === "RUNNING").length} Active
-          </span>
-        </div>
-        {isExpanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
+      <div className="cursor-pointer shrink-0" onClick={() => setIsExpanded(!isExpanded)}>
+        <PanelHeader
+          icon={<ListChecks size={13} />}
+          title="Task Monitor"
+          subtitle={`${operations.filter(op => op.status === "RUNNING").length} active · ${operations.length} total`}
+        />
       </div>
 
       {/* Filter Bar */}
