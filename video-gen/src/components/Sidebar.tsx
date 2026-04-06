@@ -4,7 +4,7 @@ import React from "react";
 import {
   Sparkles,
   Clapperboard,
-  Gauge,
+  Drama,
   ListChecks,
   Settings,
   ShieldCheck,
@@ -20,7 +20,7 @@ const Sidebar = ({ activeView, onSelect, isAdmin }: SidebarProps) => {
   const items = [
     { id: "upscale",    icon: <Sparkles size={20} />,     label: "4K Upscale" },
     { id: "transform",  icon: <Clapperboard size={20} />, label: "Transform" },
-    { id: "perf",       icon: <Gauge size={20} />,        label: "Performance" },
+    { id: "perf",       icon: <Drama size={20} />,        label: "Performance" },
     { id: "tasks",      icon: <ListChecks size={20} />,   label: "Tasks" },
   ];
 
