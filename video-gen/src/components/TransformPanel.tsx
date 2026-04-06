@@ -361,8 +361,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
                   <div
                     key={vid.id}
                     onClick={() => { setSelectedVideoUrl(vid.url); onVideoSelect?.(vid.url); }}
-                    className="relative rounded-lg overflow-hidden border-2 border-slate-200 hover:border-slate-300 cursor-pointer transition-all group active:scale-95"
-                    style={{ aspectRatio: vid.aspectRatio === "9:16" ? "9/16" : "16/9" }}
+                    className="relative aspect-video rounded-lg overflow-hidden border-2 border-slate-200 hover:border-slate-300 cursor-pointer transition-all group active:scale-95"
                   >
                     <video
                       src={vid.url + "#t=0.5"}
