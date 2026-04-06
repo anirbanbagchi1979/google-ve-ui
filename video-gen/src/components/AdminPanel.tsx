@@ -57,7 +57,7 @@ const AdminPanel = () => {
 
   const handleAdd = async () => {
     const email = newEmail.trim().toLowerCase();
-    if (!email || !email.includes("@")) { showFeedback("error", "Enter a valid email address."); return; }
+    if (!email || !email.endsWith("@google.com")) { showFeedback("error", "Only @google.com addresses are allowed."); return; }
     if (users.some(u => u.email === email) || ADMIN_EMAILS.includes(email)) {
       showFeedback("error", "Email is already allowed."); return;
     }
