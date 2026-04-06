@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Terminal, ChevronUp, ChevronDown, Trash2, X } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
+import { Terminal, ChevronUp, ChevronDown, Trash2 } from "lucide-react";
 
 interface DebugConsoleProps {
   logs: any[];
@@ -11,17 +10,6 @@ interface DebugConsoleProps {
 
 const DebugConsole = ({ logs, onClear }: DebugConsoleProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { accessToken, setToken } = useAuth();
-  const [manualToken, setManualToken] = useState("");
-
-  const handleSetManualToken = () => {
-    if (manualToken.trim()) {
-      setToken(manualToken.trim());
-      setManualToken("");
-      alert("Token updated manually!");
-    }
-  };
-
   return (
     <div className={`fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-700 transition-all duration-300 z-[100] ${isExpanded ? "h-80" : "h-12"}`}>
       {/* Header */}
@@ -41,24 +29,7 @@ const DebugConsole = ({ logs, onClear }: DebugConsoleProps) => {
 
         {isExpanded && (
           <div className="flex items-center gap-4" onClick={(e) => e.stopPropagation()}>
-            {/* Manual Token Override */}
-            <div className="flex items-center gap-2">
-              <input 
-                type="password"
-                placeholder="Paste GCP Access Token..."
-                value={manualToken}
-                onChange={(e) => setManualToken(e.target.value)}
-                className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[10px] w-48 text-slate-300 focus:outline-none focus:border-blue-500 transition-colors"
-              />
-              <button 
-                onClick={handleSetManualToken}
-                className="bg-blue-600 hover:bg-blue-500 text-white text-[10px] px-2 py-1 rounded font-bold transition-colors"
-              >
-                Set Token
-              </button>
-            </div>
-
-            <button 
+            <button
               onClick={onClear}
               className="text-slate-500 hover:text-white transition-colors p-1"
               title="Clear Logs"

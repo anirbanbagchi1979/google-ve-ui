@@ -18,6 +18,7 @@ import { collection, getDocs, query, limit, where, addDoc, serverTimestamp } fro
 import { useConfig } from "@/context/ConfigContext";
 import { useProject } from "@/context/ProjectContext";
 import { getGcsUri } from "@/utils/gcs";
+import { formatBytes } from "@/utils/time";
 
 interface TransformPanelProps {
   onGenerate?: (payload: any, isLongRunning: boolean) => void;
@@ -31,7 +32,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
   const imageFileInputRef = useRef<HTMLInputElement>(null);
   const maskFileInputRef = useRef<HTMLInputElement>(null);
 
-  const [videos, setVideos] = useState<{ id: string; name: string; url: string }[]>([]);
+  const [videos, setVideos] = useState<{ id: string; name: string; url: string; size?: number }[]>([]);
   const [loadingAssets, setLoadingAssets] = useState(true);
 
   const [selectedVideoUrl, setSelectedVideoUrl] = useState<string | null>(null);
@@ -71,7 +72,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
         where("projectId", "==", currentProjectId),
         limit(20)
       ));
-      setVideos(snap.docs.map(d => ({ id: d.id, name: d.data().name || "Untitled", url: d.data().url || "" })).reverse());
+      setVideos(snap.docs.map(d => ({ id: d.id, name: d.data().name || "Untitled", url: d.data().url || "", size: d.data().size || undefined })).reverse());
     } catch (e) {
       console.error("Error fetching videos", e);
     } finally {
@@ -332,6 +333,11 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
                       onMouseEnter={e => e.currentTarget.play()}
                       onMouseLeave={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0.5; }}
                     />
+                    {vid.size && (
+                      <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-black/60 text-white text-[9px] font-bold rounded pointer-events-none">
+                        {formatBytes(vid.size)}
+                      </div>
+                    )}
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                       <PlayCircle size={20} className="text-white" />
                     </div>

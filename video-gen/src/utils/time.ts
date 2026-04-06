@@ -25,6 +25,16 @@ export const getDurationString = (op: Operation, now: number = Date.now()): stri
 };
 
 /**
+ * Format bytes as a human-readable string (KB, MB, GB).
+ */
+export const formatBytes = (bytes: number): string => {
+  if (bytes >= 1_073_741_824) return (bytes / 1_073_741_824).toFixed(1) + " GB";
+  if (bytes >= 1_048_576) return (bytes / 1_048_576).toFixed(1) + " MB";
+  if (bytes >= 1024) return (bytes / 1024).toFixed(0) + " KB";
+  return bytes + " B";
+};
+
+/**
  * Format seconds as MM:SS string.
  */
 export const formatTime = (time: number): string => {

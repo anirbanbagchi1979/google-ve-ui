@@ -23,11 +23,13 @@ import { ref, listAll, getDownloadURL, uploadBytesResumable } from "firebase/sto
 import { collection, addDoc, serverTimestamp, query, getDocs, orderBy, limit, where } from "firebase/firestore";
 import { useConfig } from "@/context/ConfigContext";
 import { useProject } from "@/context/ProjectContext";
+import { formatBytes } from "@/utils/time";
 
 interface VideoAsset {
   id: string;
   name: string;
   url: string;
+  size?: number;
   createdAt: any;
 }
 
@@ -109,10 +111,11 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
       const videoList: VideoAsset[] = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        videoList.push({ 
-          id: doc.id, 
+        videoList.push({
+          id: doc.id,
           name: data.name || "Untitled",
           url: data.url || "",
+          size: data.size || undefined,
           createdAt: data.createdAt
         });
       });
@@ -443,6 +446,11 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
                         e.currentTarget.currentTime = 0.1;
                       }}
                     />
+                    {vid.size && (
+                      <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-black/60 text-white text-[9px] font-bold rounded pointer-events-none">
+                        {formatBytes(vid.size)}
+                      </div>
+                    )}
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                        <PlayCircle size={20} className="text-white" />
                     </div>

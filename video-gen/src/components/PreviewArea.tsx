@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useState, useEffect } from "react";
-import { 
+import {
   Play,
   Pause,
   Volume2,
@@ -11,7 +11,8 @@ import {
   ZoomOut,
   RefreshCcw,
   Eye,
-  EyeOff
+  EyeOff,
+  Loader2
 } from "lucide-react";
 
 interface PreviewAreaProps {
@@ -22,8 +23,9 @@ interface PreviewAreaProps {
 }
 
 const PreviewArea = ({ videoUrl, originalVideoUrl, leftLabel = "Input Video", rightLabel = "Output" }: PreviewAreaProps) => {
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const origVideoRef = useRef<HTMLVideoElement>(null);
 
@@ -54,6 +56,14 @@ const PreviewArea = ({ videoUrl, originalVideoUrl, leftLabel = "Input Video", ri
     }
     setIsPlaying(!isPlaying);
   };
+
+  // Reset loading state when video URL changes
+  useEffect(() => {
+    if (videoUrl) {
+      setIsLoading(true);
+      setIsPlaying(false);
+    }
+  }, [videoUrl]);
 
   // Sync videos if side-by-side
   useEffect(() => {
@@ -154,10 +164,10 @@ const PreviewArea = ({ videoUrl, originalVideoUrl, leftLabel = "Input Video", ri
                 src={originalVideoUrl!}
                 className="w-full h-full object-contain"
                 style={zoomStyle}
-                autoPlay
                 loop
                 muted={isMuted}
                 playsInline
+                preload="auto"
               />
             </div>
           )}
@@ -168,18 +178,32 @@ const PreviewArea = ({ videoUrl, originalVideoUrl, leftLabel = "Input Video", ri
               src={videoUrl}
               className="w-full h-full object-contain"
               style={zoomStyle}
-              autoPlay
               loop
               muted={isMuted}
               playsInline
+              preload="auto"
               onPlay={() => setIsPlaying(true)}
               onPause={() => setIsPlaying(false)}
               onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
               onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+              onCanPlay={(e) => {
+                setIsLoading(false);
+                e.currentTarget.play();
+                setIsPlaying(true);
+                if (origVideoRef.current) origVideoRef.current.play();
+              }}
             />
           </div>
 
         </div>
+
+        {/* Loading overlay */}
+        {isLoading && (
+          <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm gap-3">
+            <Loader2 size={36} className="text-white animate-spin" />
+            <p className="text-white/70 text-xs font-semibold uppercase tracking-widest">Buffering…</p>
+          </div>
+        )}
 
         {/* Time and Frame Overlay */}
         <div className="absolute bottom-6 left-8 px-4 py-2 bg-black/60 backdrop-blur-xl rounded-lg border border-white/10 flex items-center gap-4 z-30 pointer-events-none text-white font-mono text-xs drop-shadow-2xl font-medium tracking-tight">
