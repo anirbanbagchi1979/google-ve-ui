@@ -405,7 +405,7 @@ const OperationsPanel = ({ operations, addLog, onVideoSelect, onStatusUpdate }: 
                               </div>
                             </div>
                           )}
-                          {displayUri && (
+                          {displayUri && op.status === "DONE" && (
                             <div className="flex-1 min-w-0 flex items-center gap-1">
                               <button
                                 onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(displayUri); }}
