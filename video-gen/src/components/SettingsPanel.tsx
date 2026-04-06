@@ -42,7 +42,7 @@ const SettingsPanel = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-white overflow-hidden max-w-2xl mx-auto w-full p-8 space-y-8">
+    <div className="flex-1 flex flex-col bg-white overflow-y-auto max-w-2xl mx-auto w-full p-8 space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-slate-200 pb-6">
         <div className="flex items-center gap-3">

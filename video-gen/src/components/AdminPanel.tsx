@@ -92,7 +92,7 @@ const AdminPanel = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-white overflow-hidden">
+    <div className="flex flex-col flex-1 bg-white overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2.5 px-4 py-3 bg-slate-800 border-b border-slate-700 shrink-0">
         <div className="w-7 h-7 bg-slate-600 rounded-lg flex items-center justify-center shrink-0">
