@@ -296,12 +296,12 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
                 <div
                   key={vid.id}
                   onClick={() => selectVideo(vid.url)}
-                  className={`relative aspect-video rounded-lg overflow-hidden border-2 cursor-pointer transition-all group active:scale-95
+                  className={`relative aspect-video bg-black rounded-lg overflow-hidden border-2 cursor-pointer transition-all group active:scale-95
                     ${selectedUrl === vid.url ? "border-blue-500 ring-2 ring-blue-500/20" : "border-slate-200 hover:border-slate-300"}`}
                 >
                   <video
                     src={vid.url + "#t=0.5"}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain"
                     preload="metadata"
                     muted
                     playsInline
