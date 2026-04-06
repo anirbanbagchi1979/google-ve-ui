@@ -107,6 +107,14 @@ const AppContent = () => {
   );
 };
 
+const ALLOWED_EMAILS = [
+  "anirban.bagchi@gmail.com",
+  "bagchi@google.com",
+  "balajikr@google.com",
+  "kartikjain@google.com",
+  "patpoon@google.com",
+];
+
 const AuthGate = () => {
   const { user, loading, setToken } = useAuth();
 
@@ -117,6 +125,28 @@ const AuthGate = () => {
   );
 
   if (!user) return <LoginPage />;
+
+  if (!ALLOWED_EMAILS.includes(user.email ?? "")) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-6 px-4">
+        <div className="w-14 h-14 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center">
+          <span className="text-2xl">🚫</span>
+        </div>
+        <div className="text-center space-y-2">
+          <h1 className="text-white font-bold text-xl">Access Denied</h1>
+          <p className="text-slate-400 text-sm">
+            <span className="text-slate-300 font-medium">{user.email}</span> is not authorised to use this app.
+          </p>
+        </div>
+        <button
+          onClick={async () => { await logout(); setToken(null); }}
+          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-lg border border-slate-700 transition-colors"
+        >
+          Sign out
+        </button>
+      </div>
+    );
+  }
 
   return (
     <ProjectProvider>
