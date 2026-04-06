@@ -283,7 +283,7 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
 
         {/* Media library — videos only */}
         <div className="space-y-2">
-          <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Media Assets</p>
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Media Assets</p>
           {loadingAssets ? (
             <div className="flex items-center justify-center py-6">
               <Loader2 size={18} className="text-slate-300 animate-spin" />
@@ -338,7 +338,7 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
 
         {/* Options */}
         <div className="space-y-3 pt-1 border-t border-slate-100">
-          <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Output Settings</p>
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Output Settings</p>
 
           {/* Aspect Ratio */}
           <div className="space-y-1.5">

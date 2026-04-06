@@ -94,13 +94,13 @@ const AdminPanel = () => {
   return (
     <div className="flex flex-col flex-1 bg-white overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-2.5 px-4 py-3 bg-slate-800 border-b border-slate-700 shrink-0">
-        <div className="w-7 h-7 bg-slate-600 rounded-lg flex items-center justify-center shrink-0">
+      <div className="flex items-center gap-2.5 px-4 py-3 bg-blue-50 border-b border-blue-100 shrink-0">
+        <div className="w-7 h-7 bg-blue-500 rounded-lg flex items-center justify-center shrink-0">
           <Shield size={13} className="text-white" />
         </div>
         <div>
-          <p className="text-[12px] font-bold text-white">Admin — Access Control</p>
-          <p className="text-[10px] text-slate-400">Manage who can log into this app</p>
+          <p className="text-[12px] font-bold text-blue-900">Admin — Access Control</p>
+          <p className="text-[10px] text-blue-600/60">Manage who can log into this app</p>
         </div>
       </div>
 
@@ -118,7 +118,7 @@ const AdminPanel = () => {
 
       {/* Add user — fixed */}
       <div className="px-4 pt-4 pb-3 space-y-2 shrink-0 border-b border-slate-100">
-        <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Add user</p>
+        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Add user</p>
         <div className="flex gap-2">
           <input
             type="email"
@@ -126,12 +126,12 @@ const AdminPanel = () => {
             onChange={e => setNewEmail(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleAdd()}
             placeholder="user@example.com"
-            className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/20 focus:border-slate-400 transition-all placeholder:text-slate-400"
+            className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all placeholder:text-slate-400"
           />
           <button
             onClick={handleAdd}
             disabled={adding || !newEmail.trim()}
-            className="px-3 py-2 bg-slate-800 text-white rounded-xl text-[11px] font-bold flex items-center gap-1.5 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            className="px-3 py-2 bg-blue-600 text-white rounded-xl text-[11px] font-bold flex items-center gap-1.5 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
           >
             {adding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
             Add
@@ -141,7 +141,7 @@ const AdminPanel = () => {
 
       {/* Allowed users list — scrollable */}
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
-        <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-2">
+        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
           Allowed users ({ADMIN_EMAILS.length + users.length})
         </p>
 
@@ -162,7 +162,7 @@ const AdminPanel = () => {
             <Loader2 size={16} className="animate-spin text-slate-300" />
           </div>
         ) : users.length === 0 ? (
-          <p className="text-[11px] text-slate-400 text-center py-4">No additional users yet.</p>
+          <p className="text-[11px] text-slate-400 text-center py-6">No additional users yet.</p>
         ) : (
           users.map(u => (
             <div key={u.id} className="flex items-center justify-between px-3 py-2.5 bg-white border border-slate-200 rounded-xl">

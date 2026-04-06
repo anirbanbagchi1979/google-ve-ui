@@ -287,13 +287,13 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
   return (
     <div className="flex flex-col h-full bg-white overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-2.5 px-4 py-3 bg-violet-50 border-b border-violet-100 shrink-0">
-        <div className="w-7 h-7 bg-violet-500 rounded-lg flex items-center justify-center shrink-0">
+      <div className="flex items-center gap-2.5 px-4 py-3 bg-blue-50 border-b border-blue-100 shrink-0">
+        <div className="w-7 h-7 bg-blue-500 rounded-lg flex items-center justify-center shrink-0">
           <Wand2 size={13} className="text-white" />
         </div>
         <div>
-          <p className="text-[12px] font-bold text-violet-900">Video Transform</p>
-          <p className="text-[10px] text-violet-500">Select a video, set controls, and transform</p>
+          <p className="text-[12px] font-bold text-blue-900">Video Transform</p>
+          <p className="text-[10px] text-blue-500">Select a video, set controls, and transform</p>
         </div>
       </div>
 
@@ -301,17 +301,17 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
 
         {/* Input Video */}
         <div className="space-y-2">
-          <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Input Video</p>
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Input Video</p>
           <div
             onClick={() => !isUploadingVideo && !selectedVideoUrl && videoFileInputRef.current?.click()}
             className={`relative aspect-video rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-3 transition-colors
-              ${isUploadingVideo ? "border-violet-300 bg-violet-50 cursor-not-allowed" :
+              ${isUploadingVideo ? "border-blue-300 bg-blue-50 cursor-not-allowed" :
                 selectedVideoUrl ? "border-slate-200 bg-slate-50 p-0 overflow-hidden cursor-default" :
                 "border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 cursor-pointer"}`}
           >
             {isUploadingVideo ? (
               <div className="flex flex-col items-center gap-2">
-                <Loader2 size={28} className="text-violet-500 animate-spin" />
+                <Loader2 size={28} className="text-blue-500 animate-spin" />
                 <p className="text-xs font-bold text-slate-600">{Math.round(videoUploadProgress)}% Uploading…</p>
               </div>
             ) : selectedVideoUrl ? (
@@ -323,7 +323,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
                 >
                   <X size={12} />
                 </button>
-                <div className="absolute bottom-2 left-2 px-2 py-0.5 bg-violet-500 text-white text-[10px] font-bold rounded-md">Selected</div>
+                <div className="absolute bottom-2 left-2 px-2 py-0.5 bg-blue-500 text-white text-[10px] font-bold rounded-md">Selected</div>
               </>
             ) : (
               <>
@@ -338,7 +338,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
             )}
           </div>
           {videoUploadError && (
-            <div className="flex items-center gap-2 text-red-500 text-[10px] font-medium bg-red-50 px-3 py-2 rounded-lg">
+            <div className="flex items-center gap-1.5 text-red-500 text-[10px] font-medium bg-red-50 px-3 py-2 rounded-lg">
               <AlertCircle size={13} /> {videoUploadError}
             </div>
           )}
@@ -350,11 +350,11 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
           <div className="space-y-2">
             <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Media Library</p>
             {loadingAssets ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 size={16} className="text-slate-300 animate-spin" />
+              <div className="flex items-center justify-center py-6">
+                <Loader2 size={18} className="text-slate-300 animate-spin" />
               </div>
             ) : videos.length === 0 ? (
-              <p className="text-[11px] text-slate-400 text-center py-4">No videos in library</p>
+              <p className="text-[11px] text-slate-400 text-center py-6">No videos in library</p>
             ) : (
               <div className="grid grid-cols-2 gap-2">
                 {videos.map(vid => (
@@ -389,7 +389,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
               <button
                 onClick={loadMoreVideos}
                 disabled={loadingMore}
-                className="w-full py-2 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-500 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                className="w-full py-2 mt-1 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-500 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
               >
                 {loadingMore ? <Loader2 size={12} className="animate-spin" /> : null}
                 {loadingMore ? "Loading…" : "Load more"}
@@ -407,7 +407,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
         {/* Control Image (optional) */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               Control Image <span className="text-slate-400 normal-case font-normal">(optional)</span>
             </p>
             {controlImageUrl && (
@@ -419,16 +419,16 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
           <div
             onClick={() => !isUploadingImage && imageFileInputRef.current?.click()}
             className={`relative h-24 rounded-xl border-2 border-dashed flex items-center justify-center gap-3 transition-colors cursor-pointer overflow-hidden
-              ${isUploadingImage ? "border-violet-300 bg-violet-50 cursor-not-allowed" :
+              ${isUploadingImage ? "border-blue-300 bg-blue-50 cursor-not-allowed" :
                 controlImageUrl ? "border-slate-200 p-0" :
                 "border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300"}`}
           >
             {isUploadingImage ? (
-              <Loader2 size={20} className="text-violet-500 animate-spin" />
+              <Loader2 size={20} className="text-blue-500 animate-spin" />
             ) : controlImageUrl ? (
               <>
                 <img src={controlImageUrl} alt="Control" className="w-full h-full object-cover" />
-                <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-violet-500 text-white text-[9px] font-bold rounded">Control Image</div>
+                <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-blue-500 text-white text-[9px] font-bold rounded-md">Control Image</div>
               </>
             ) : (
               <div className="flex items-center gap-2 text-slate-400">
@@ -438,7 +438,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
             )}
           </div>
           {imageUploadError && (
-            <div className="flex items-center gap-2 text-red-500 text-[10px] bg-red-50 px-3 py-2 rounded-lg">
+            <div className="flex items-center gap-1.5 text-red-500 text-[10px] font-medium bg-red-50 px-3 py-2 rounded-lg">
               <AlertCircle size={13} /> {imageUploadError}
             </div>
           )}
@@ -448,7 +448,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
         {/* Mask Video (optional) */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               Mask Video <span className="text-slate-400 normal-case font-normal">(optional)</span>
             </p>
             {maskVideoUrl && (
@@ -460,7 +460,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
 
           {/* Selected mask preview */}
           {maskVideoUrl ? (
-            <div className="relative h-24 rounded-xl overflow-hidden border border-violet-200 bg-black">
+            <div className="relative h-24 rounded-xl overflow-hidden border border-blue-200 bg-black">
               <video
                 src={maskVideoUrl + "#t=0.5"}
                 className="w-full h-full object-cover opacity-90"
@@ -476,7 +476,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
               >
                 <X size={12} />
               </button>
-              <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-violet-600 text-white text-[9px] font-bold rounded flex items-center gap-1">
+              <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-blue-600 text-white text-[9px] font-bold rounded-md flex items-center gap-1">
                 <Film size={9} /> Mask Selected
               </div>
             </div>
@@ -510,8 +510,8 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
               {showMaskLibrary && (
                 <>
                   {loadingMasks ? (
-                    <div className="flex items-center justify-center py-4">
-                      <Loader2 size={16} className="text-slate-300 animate-spin" />
+                    <div className="flex items-center justify-center py-6">
+                      <Loader2 size={18} className="text-slate-300 animate-spin" />
                     </div>
                   ) : (
                     <div className="grid grid-cols-3 gap-1.5">
@@ -519,7 +519,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
                         <div
                           key={mv.id}
                           onClick={() => { setMaskVideoUrl(mv.url); setShowMaskLibrary(false); }}
-                          className="relative aspect-video rounded-lg overflow-hidden border-2 border-slate-200 hover:border-violet-400 cursor-pointer transition-all group active:scale-95"
+                          className="relative aspect-video rounded-lg overflow-hidden border-2 border-slate-200 hover:border-blue-400 cursor-pointer transition-all group active:scale-95"
                           title={mv.name}
                         >
                           <video
@@ -531,7 +531,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
                             onMouseEnter={e => e.currentTarget.play()}
                             onMouseLeave={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0.5; }}
                           />
-                          <div className="absolute inset-0 bg-violet-500/0 group-hover:bg-violet-500/20 transition-colors flex items-center justify-center">
+                          <div className="absolute inset-0 bg-blue-500/0 group-hover:bg-blue-500/20 transition-colors flex items-center justify-center">
                             <PlayCircle size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                           </div>
                         </div>
@@ -550,7 +550,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
           )}
 
           {maskUploadError && (
-            <div className="flex items-center gap-2 text-red-500 text-[10px] bg-red-50 px-3 py-2 rounded-lg">
+            <div className="flex items-center gap-1.5 text-red-500 text-[10px] font-medium bg-red-50 px-3 py-2 rounded-lg">
               <AlertCircle size={13} /> {maskUploadError}
             </div>
           )}
@@ -559,20 +559,20 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
 
         {/* Control Prompt */}
         <div className="space-y-2">
-          <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Control Prompt</p>
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Control Prompt</p>
           <textarea
             value={prompt}
             onChange={e => setPrompt(e.target.value)}
             placeholder="Describe the transformation…"
-            className="w-full h-24 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 transition-all placeholder:text-slate-400"
+            className="w-full h-24 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all placeholder:text-slate-400"
           />
         </div>
 
         {/* Control Strength */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Control Strength</p>
-            <span className="text-[12px] font-mono font-bold text-violet-600 bg-violet-50 px-2 py-0.5 rounded border border-violet-100">
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Control Strength</p>
+            <span className="text-[12px] font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
               {strength.toFixed(2)}
             </span>
           </div>
@@ -583,7 +583,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
             step="0.01"
             value={strength}
             onChange={e => setStrength(parseFloat(e.target.value))}
-            className="w-full h-2 bg-slate-200 rounded-full appearance-none cursor-pointer accent-violet-500"
+            className="w-full h-2 bg-slate-200 rounded-full appearance-none cursor-pointer accent-blue-500"
           />
           <div className="flex justify-between text-[9px] text-slate-400 font-mono">
             <span>0.00</span>
@@ -594,7 +594,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
 
         {/* Diffusion Steps */}
         <div className="space-y-2">
-          <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
             Diffusion Steps <span className="text-slate-400 normal-case font-normal">(1–250)</span>
           </p>
           <input
@@ -604,13 +604,13 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
             value={stepsInput}
             onChange={e => handleStepsChange(e.target.value)}
             onBlur={handleStepsBlur}
-            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 transition-all"
+            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
           />
         </div>
 
         {/* Compression Quality */}
         <div className="space-y-2">
-          <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Compression Quality</p>
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Compression Quality</p>
           <div className="flex gap-2">
             {(["optimized", "lossless"] as const).map(q => (
               <button
@@ -618,8 +618,8 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
                 onClick={() => setCompressionQuality(q)}
                 className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
                   compressionQuality === q
-                    ? "bg-violet-600 text-white border-violet-600 shadow-sm"
-                    : "bg-slate-50 text-slate-500 border-slate-200 hover:border-violet-300 hover:text-violet-600"
+                    ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                    : "bg-slate-50 text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600"
                 }`}
               >
                 {q.charAt(0).toUpperCase() + q.slice(1)}
@@ -644,7 +644,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
         <button
           onClick={handleSubmit}
           disabled={!selectedVideoUrl || submitting}
-          className="w-full py-3 bg-violet-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-violet-700 active:scale-[0.97] transition-all shadow-md shadow-violet-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+          className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 active:scale-[0.97] transition-all shadow-md shadow-blue-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
         >
           {submitting ? (
             <><Loader2 size={16} className="animate-spin" /> Submitting…</>

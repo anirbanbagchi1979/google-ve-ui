@@ -393,8 +393,7 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
         {/* Dynamic Image/Video Reuse Section */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold flex items-center gap-2 text-slate-700">
-               <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+            <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                Recent Assets
             </h3>
             <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
@@ -420,8 +419,8 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
           <div className="flex gap-4 items-start">
             <div className="grid grid-cols-1 gap-2 w-24">
               {loadingAssets ? (
-                <div className="aspect-video bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center">
-                  <Loader2 size={16} className="text-slate-300 animate-spin" />
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 size={18} className="text-slate-300 animate-spin" />
                 </div>
               ) : assetError ? (
                 <div className="aspect-video bg-red-50 border border-red-100 rounded-lg flex items-center justify-center text-red-500 text-[10px] text-center p-1">
@@ -445,9 +444,7 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
                     </div>
                   ))
                 ) : (
-                  <div className="aspect-video bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center text-slate-300 text-[10px]">
-                    No images
-                  </div>
+                  <p className="text-[11px] text-slate-400 text-center py-6">No images</p>
                 )
               ) : videos.length > 0 ? (
                 videos.slice(0, 3).map((vid) => (
@@ -486,15 +483,13 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
                   </div>
                 ))
               ) : (
-                <div className="aspect-video bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center text-slate-300 text-[10px]">
-                  No videos
-                </div>
+                <p className="text-[11px] text-slate-400 text-center py-6">No videos</p>
               )}
               {hasMoreVideos && (
                 <button
                   onClick={loadMoreVideos}
                   disabled={loadingMoreVideos}
-                  className="w-full py-1.5 border border-slate-200 rounded-lg text-[10px] font-semibold text-slate-400 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
+                  className="w-full py-2 mt-1 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-500 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
                 >
                   {loadingMoreVideos ? <Loader2 size={10} className="animate-spin" /> : null}
                   {loadingMoreVideos ? "Loading…" : "Load more"}
