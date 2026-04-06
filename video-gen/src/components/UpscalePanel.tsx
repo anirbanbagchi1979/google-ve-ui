@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { storage, db } from "@/lib/firebase";
 import { ref, listAll, getDownloadURL, uploadBytesResumable } from "firebase/storage";
-import { collection, getDocs, query, limit, where, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, getDocs, query, limit, where, addDoc, serverTimestamp, orderBy, startAfter, QueryDocumentSnapshot } from "firebase/firestore";
 import { useConfig } from "@/context/ConfigContext";
 import { useProject } from "@/context/ProjectContext";
 import { formatBytes, detectAspectRatioFromFile } from "@/utils/time";
@@ -43,8 +43,12 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Video library
+  const PAGE_SIZE = 8;
   const [videos, setVideos] = useState<{ id: string; name: string; url: string; size?: number; aspectRatio?: string }[]>([]);
   const [loadingAssets, setLoadingAssets] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const lastDocRef = useRef<QueryDocumentSnapshot | null>(null);
 
   // Selection
   const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
@@ -84,27 +88,46 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const fetchVideos = useCallback(async () => {
-    if (!currentProjectId) {
-      setVideos([]);
-      setLoadingAssets(false);
-      return;
-    }
+    if (!currentProjectId) { setVideos([]); setLoadingAssets(false); return; }
     setLoadingAssets(true);
+    lastDocRef.current = null;
     try {
-      // From Firestore videos collection
       const snap = await getDocs(query(
-        collection(db, "videos"), 
+        collection(db, "videos"),
         where("projectId", "==", currentProjectId),
-        limit(20)
+        orderBy("createdAt", "desc"),
+        limit(PAGE_SIZE)
       ));
-      const list = snap.docs.map(d => ({ id: d.id, name: d.data().name || "Untitled", url: d.data().url || "", size: d.data().size || undefined, aspectRatio: d.data().aspectRatio || undefined }));
-      setVideos(list.reverse());
+      lastDocRef.current = snap.docs[snap.docs.length - 1] ?? null;
+      setHasMore(snap.docs.length === PAGE_SIZE);
+      setVideos(snap.docs.map(d => ({ id: d.id, name: d.data().name || "Untitled", url: d.data().url || "", size: d.data().size || undefined, aspectRatio: d.data().aspectRatio || undefined })));
     } catch (e) {
       console.error("Error fetching videos", e);
     } finally {
       setLoadingAssets(false);
     }
   }, [currentProjectId]);
+
+  const loadMoreVideos = async () => {
+    if (!currentProjectId || !lastDocRef.current || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const snap = await getDocs(query(
+        collection(db, "videos"),
+        where("projectId", "==", currentProjectId),
+        orderBy("createdAt", "desc"),
+        startAfter(lastDocRef.current),
+        limit(PAGE_SIZE)
+      ));
+      lastDocRef.current = snap.docs[snap.docs.length - 1] ?? lastDocRef.current;
+      setHasMore(snap.docs.length === PAGE_SIZE);
+      setVideos(prev => [...prev, ...snap.docs.map(d => ({ id: d.id, name: d.data().name || "Untitled", url: d.data().url || "", size: d.data().size || undefined, aspectRatio: d.data().aspectRatio || undefined }))]);
+    } catch (e) {
+      console.error("Error loading more videos", e);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useEffect(() => { fetchVideos(); }, [fetchVideos]);
 
@@ -292,6 +315,16 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
                 </div>
               ))}
             </div>
+          )}
+          {hasMore && (
+            <button
+              onClick={loadMoreVideos}
+              disabled={loadingMore}
+              className="w-full py-2 mt-1 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-500 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+            >
+              {loadingMore ? <Loader2 size={12} className="animate-spin" /> : null}
+              {loadingMore ? "Loading…" : "Load more"}
+            </button>
           )}
         </div>
 

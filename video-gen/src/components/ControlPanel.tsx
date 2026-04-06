@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { storage, db } from "@/lib/firebase";
 import { ref, listAll, getDownloadURL, uploadBytesResumable } from "firebase/storage";
-import { collection, addDoc, serverTimestamp, query, getDocs, orderBy, limit, where } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, getDocs, orderBy, limit, where, startAfter, QueryDocumentSnapshot } from "firebase/firestore";
 import { useConfig } from "@/context/ConfigContext";
 import { useProject } from "@/context/ProjectContext";
 import { formatBytes, detectAspectRatioFromFile } from "@/utils/time";
@@ -65,11 +65,15 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
   const [activeTab, setActiveTab] = useState<"Image" | "Video" | "Audio">("Video");
   const [assetFilter, setAssetFilter] = useState<"Image" | "Video">("Video");
   
+  const PAGE_SIZE = 6;
   // Asset States
   const [images, setImages] = useState<string[]>([]);
   const [videos, setVideos] = useState<VideoAsset[]>([]);
   const [loadingAssets, setLoadingAssets] = useState(true);
   const [assetError, setAssetError] = useState<string | null>(null);
+  const [loadingMoreVideos, setLoadingMoreVideos] = useState(false);
+  const [hasMoreVideos, setHasMoreVideos] = useState(false);
+  const lastVideoDocRef = useRef<QueryDocumentSnapshot | null>(null);
 
   // Video Upload States
   const [isUploading, setIsUploading] = useState(false);
@@ -98,34 +102,49 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
   }, []);
 
   const fetchVideos = useCallback(async () => {
-    if (!currentProjectId) {
-      setVideos([]);
-      return;
-    }
+    if (!currentProjectId) { setVideos([]); return; }
+    lastVideoDocRef.current = null;
     try {
-      const q = query(
-        collection(db, "videos"), 
-        where("projectId", "==", currentProjectId), 
-        limit(10)
-      );
-      const querySnapshot = await getDocs(q);
-      const videoList: VideoAsset[] = [];
-      querySnapshot.forEach((doc) => {
+      const snap = await getDocs(query(
+        collection(db, "videos"),
+        where("projectId", "==", currentProjectId),
+        orderBy("createdAt", "desc"),
+        limit(PAGE_SIZE)
+      ));
+      lastVideoDocRef.current = snap.docs[snap.docs.length - 1] ?? null;
+      setHasMoreVideos(snap.docs.length === PAGE_SIZE);
+      setVideos(snap.docs.map(doc => {
         const data = doc.data();
-        videoList.push({
-          id: doc.id,
-          name: data.name || "Untitled",
-          url: data.url || "",
-          size: data.size || undefined,
-          aspectRatio: data.aspectRatio || undefined,
-          createdAt: data.createdAt
-        });
-      });
-      setVideos(videoList.reverse()); 
+        return { id: doc.id, name: data.name || "Untitled", url: data.url || "", size: data.size || undefined, aspectRatio: data.aspectRatio || undefined, createdAt: data.createdAt };
+      }));
     } catch (err) {
       console.error("Error fetching videos", err);
     }
   }, [currentProjectId]);
+
+  const loadMoreVideos = async () => {
+    if (!currentProjectId || !lastVideoDocRef.current || loadingMoreVideos) return;
+    setLoadingMoreVideos(true);
+    try {
+      const snap = await getDocs(query(
+        collection(db, "videos"),
+        where("projectId", "==", currentProjectId),
+        orderBy("createdAt", "desc"),
+        startAfter(lastVideoDocRef.current),
+        limit(PAGE_SIZE)
+      ));
+      lastVideoDocRef.current = snap.docs[snap.docs.length - 1] ?? lastVideoDocRef.current;
+      setHasMoreVideos(snap.docs.length === PAGE_SIZE);
+      setVideos(prev => [...prev, ...snap.docs.map(doc => {
+        const data = doc.data();
+        return { id: doc.id, name: data.name || "Untitled", url: data.url || "", size: data.size || undefined, aspectRatio: data.aspectRatio || undefined, createdAt: data.createdAt };
+      })]);
+    } catch (err) {
+      console.error("Error loading more videos", err);
+    } finally {
+      setLoadingMoreVideos(false);
+    }
+  };
 
   const loadAllAssets = useCallback(async () => {
     setLoadingAssets(true);
@@ -466,6 +485,16 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
                 <div className="aspect-video bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center text-slate-300 text-[10px]">
                   No videos
                 </div>
+              )}
+              {hasMoreVideos && (
+                <button
+                  onClick={loadMoreVideos}
+                  disabled={loadingMoreVideos}
+                  className="w-full py-1.5 border border-slate-200 rounded-lg text-[10px] font-semibold text-slate-400 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
+                >
+                  {loadingMoreVideos ? <Loader2 size={10} className="animate-spin" /> : null}
+                  {loadingMoreVideos ? "Loading…" : "Load more"}
+                </button>
               )}
             </div>
             <div className="flex-1 space-y-3">
