@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import {
-  History,
+  ListChecks,
   Loader2,
   CheckCircle2,
   XCircle,
@@ -12,7 +12,11 @@ import {
   Video,
   Search,
   Filter,
-  X
+  X,
+  Sparkles,
+  Clapperboard,
+  Drama,
+  Film,
 } from "lucide-react";
 
 import { useConfig } from "@/context/ConfigContext";
@@ -53,6 +57,13 @@ const DATE_OPTIONS = [
   { label: "7 days", value: "7d" },
   { label: "30 days", value: "30d" },
 ];
+
+const TYPE_ICON: Record<string, React.ReactNode> = {
+  upscale:    <Sparkles size={13} className="text-blue-400 shrink-0" />,
+  transform:  <Clapperboard size={13} className="text-blue-400 shrink-0" />,
+  generation: <Film size={13} className="text-blue-400 shrink-0" />,
+  perf:       <Drama size={13} className="text-blue-400 shrink-0" />,
+};
 
 const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog, onVideoSelect, onStatusUpdate }: OperationsPanelProps) => {
   const [isExpanded, setIsExpanded] = useState(true);
@@ -220,7 +231,7 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center gap-2">
-          <History size={18} className="text-blue-500" />
+          <ListChecks size={18} className="text-blue-500" />
           <span className="text-[12px] font-bold uppercase tracking-wider text-slate-600">Task Monitor</span>
           <span className="px-2 py-0.5 bg-blue-500/10 text-blue-600 text-[10px] rounded-full font-bold">
             {operations.filter(op => op.status === "RUNNING").length} Active
@@ -327,7 +338,7 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
         <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50">
           {filteredOps.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center p-12 text-center opacity-40">
-              <Loader2 size={32} className="mb-4 text-slate-300" />
+              <ListChecks size={32} className="mb-4 text-slate-300" />
               <div className="text-[11px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">
                 {operations.length === 0 ? "Waiting for generations..." : "No tasks match filters"}
               </div>
@@ -366,6 +377,7 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
                         ) : (
                           <XCircle size={12} className="text-red-400 shrink-0" />
                         )}
+                        {TYPE_ICON[op.type] ?? <Film size={13} className="text-slate-300 shrink-0" />}
                         <span className="text-[12px] font-semibold text-slate-700 capitalize">{op.type}</span>
                         <div className="flex-1" />
                         {duration && (
