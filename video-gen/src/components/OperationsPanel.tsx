@@ -7,8 +7,6 @@ import {
   CheckCircle2,
   XCircle,
   ExternalLink,
-  ChevronDown,
-  ChevronUp,
   Video,
   Search,
   Filter,
@@ -67,7 +65,6 @@ const TYPE_ICON: Record<string, React.ReactNode> = {
 };
 
 const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog, onVideoSelect, onStatusUpdate }: OperationsPanelProps) => {
-  const [isExpanded, setIsExpanded] = useState(true);
   const [checkingIds, setCheckingIds] = useState<Set<string>>(new Set());
   const [checkResults, setCheckResults] = useState<Record<string, any>>({});
   const [outputSizes, setOutputSizes] = useState<Record<string, number>>({});
@@ -227,16 +224,14 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
   return (
     <div className="w-full bg-slate-50 flex flex-col h-full overflow-hidden transition-all duration-300">
       {/* Header */}
-      <div className="cursor-pointer shrink-0" onClick={() => setIsExpanded(!isExpanded)}>
-        <PanelHeader
-          icon={<ListChecks size={13} />}
-          title="Task Monitor"
-          subtitle={`${operations.filter(op => op.status === "RUNNING").length} active · ${operations.length} total`}
-        />
-      </div>
+      <PanelHeader
+        icon={<ListChecks size={13} />}
+        title="Task Monitor"
+        subtitle={`${operations.filter(op => op.status === "RUNNING").length} active · ${operations.length} total`}
+      />
 
       {/* Filter Bar */}
-      {isExpanded && (
+      {(
         <div className="px-4 py-3 bg-white border-b border-slate-200 shrink-0 space-y-2.5">
           {/* Row 1: Type pills */}
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -329,7 +324,7 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
       )}
 
       {/* List */}
-      {isExpanded && (
+      {(
         <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50">
           {filteredOps.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center p-12 text-center opacity-40">
