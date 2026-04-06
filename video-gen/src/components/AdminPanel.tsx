@@ -104,86 +104,84 @@ const AdminPanel = () => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-5">
-        {/* Feedback */}
-        {feedback && (
-          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-semibold ${
-            feedback.type === "success"
-              ? "bg-emerald-50 border border-emerald-200 text-emerald-700"
-              : "bg-red-50 border border-red-200 text-red-600"
-          }`}>
-            {feedback.type === "success" ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
-            {feedback.msg}
-          </div>
-        )}
-
-        {/* Add user */}
-        <div className="space-y-2">
-          <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Add user</p>
-          <div className="flex gap-2">
-            <input
-              type="email"
-              value={newEmail}
-              onChange={e => setNewEmail(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleAdd()}
-              placeholder="user@example.com"
-              className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/20 focus:border-slate-400 transition-all placeholder:text-slate-400"
-            />
-            <button
-              onClick={handleAdd}
-              disabled={adding || !newEmail.trim()}
-              className="px-3 py-2 bg-slate-800 text-white rounded-xl text-[11px] font-bold flex items-center gap-1.5 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-            >
-              {adding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
-              Add
-            </button>
-          </div>
+      {/* Feedback */}
+      {feedback && (
+        <div className={`mx-4 mt-3 flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-semibold shrink-0 ${
+          feedback.type === "success"
+            ? "bg-emerald-50 border border-emerald-200 text-emerald-700"
+            : "bg-red-50 border border-red-200 text-red-600"
+        }`}>
+          {feedback.type === "success" ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
+          {feedback.msg}
         </div>
+      )}
 
-        {/* Allowed users list */}
-        <div className="space-y-2">
-          <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-            Allowed users ({ADMIN_EMAILS.length + users.length})
-          </p>
+      {/* Add user — fixed */}
+      <div className="px-4 pt-4 pb-3 space-y-2 shrink-0 border-b border-slate-100">
+        <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Add user</p>
+        <div className="flex gap-2">
+          <input
+            type="email"
+            value={newEmail}
+            onChange={e => setNewEmail(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleAdd()}
+            placeholder="user@example.com"
+            className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/20 focus:border-slate-400 transition-all placeholder:text-slate-400"
+          />
+          <button
+            onClick={handleAdd}
+            disabled={adding || !newEmail.trim()}
+            className="px-3 py-2 bg-slate-800 text-white rounded-xl text-[11px] font-bold flex items-center gap-1.5 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          >
+            {adding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+            Add
+          </button>
+        </div>
+      </div>
 
-          {/* Hardcoded admins */}
-          {ADMIN_EMAILS.map(email => (
-            <div key={email} className="flex items-center justify-between px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+      {/* Allowed users list — scrollable */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-2">
+        <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-2">
+          Allowed users ({ADMIN_EMAILS.length + users.length})
+        </p>
+
+        {/* Hardcoded admins */}
+        {ADMIN_EMAILS.map(email => (
+          <div key={email} className="flex items-center justify-between px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+            <div className="min-w-0">
+              <p className="text-[12px] font-semibold text-slate-800 truncate">{email}</p>
+              <p className="text-[9px] font-bold uppercase text-slate-400 tracking-widest mt-0.5">Admin · permanent</p>
+            </div>
+            <Shield size={12} className="text-slate-400 shrink-0 ml-2" />
+          </div>
+        ))}
+
+        {/* Firestore users */}
+        {loading ? (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 size={16} className="animate-spin text-slate-300" />
+          </div>
+        ) : users.length === 0 ? (
+          <p className="text-[11px] text-slate-400 text-center py-4">No additional users yet.</p>
+        ) : (
+          users.map(u => (
+            <div key={u.id} className="flex items-center justify-between px-3 py-2.5 bg-white border border-slate-200 rounded-xl">
               <div className="min-w-0">
-                <p className="text-[12px] font-semibold text-slate-800 truncate">{email}</p>
-                <p className="text-[9px] font-bold uppercase text-slate-400 tracking-widest mt-0.5">Admin · permanent</p>
+                <p className="text-[12px] font-semibold text-slate-800 truncate">{u.email}</p>
+                {u.addedBy && (
+                  <p className="text-[9px] text-slate-400 mt-0.5 truncate">Added by {u.addedBy}</p>
+                )}
               </div>
-              <Shield size={12} className="text-slate-400 shrink-0 ml-2" />
+              <button
+                onClick={() => handleDelete(u.id, u.email)}
+                disabled={deletingId === u.id}
+                className="ml-2 p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100 disabled:opacity-40 shrink-0"
+              >
+                {deletingId === u.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+              </button>
             </div>
-          ))}
-
-          {/* Firestore users */}
-          {loading ? (
-            <div className="flex items-center justify-center py-6">
-              <Loader2 size={16} className="animate-spin text-slate-300" />
-            </div>
-          ) : users.length === 0 ? (
-            <p className="text-[11px] text-slate-400 text-center py-4">No additional users yet.</p>
-          ) : (
-            users.map(u => (
-              <div key={u.id} className="flex items-center justify-between px-3 py-2.5 bg-white border border-slate-200 rounded-xl">
-                <div className="min-w-0">
-                  <p className="text-[12px] font-semibold text-slate-800 truncate">{u.email}</p>
-                  {u.addedBy && (
-                    <p className="text-[9px] text-slate-400 mt-0.5 truncate">Added by {u.addedBy}</p>
-                  )}
-                </div>
-                <button
-                  onClick={() => handleDelete(u.id, u.email)}
-                  disabled={deletingId === u.id}
-                  className="ml-2 p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100 disabled:opacity-40 shrink-0"
-                >
-                  {deletingId === u.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                </button>
-              </div>
-            ))
-          )}
-        </div>
+          ))
+        )}
       </div>
     </div>
   );
