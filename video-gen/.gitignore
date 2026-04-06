@@ -53,3 +53,4 @@ client_secret*.json
 *.tsbuildinfo
 next-env.d.ts
 service-account.json
+proxy-service/node_modules/
