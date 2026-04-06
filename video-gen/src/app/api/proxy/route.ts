@@ -1,35 +1,58 @@
 import { NextResponse } from "next/server";
 import { GoogleAuth } from "google-auth-library";
+import path from "path";
+import fs from "fs";
 
-const PROXY_URL = process.env.PROXY_URL || "https://vef-proxy-uhz33244pa-uc.a.run.app";
+const PROXY_URL = "https://vef-proxy-uhz33244pa-uc.a.run.app";
 
-// Used locally only — in Cloud Run, identity token is fetched via ADC
-const auth = new GoogleAuth();
+// In Cloud Run, K_SERVICE is set — use identity token to call vef-proxy
+// Locally, call Vertex AI directly using the local service account key file
+const IS_CLOUD_RUN = !!process.env.K_SERVICE;
 
-async function getIdTokenClient() {
-  // In Cloud Run, this uses the attached service account to get an identity token
-  // scoped to the proxy URL, satisfying Cloud Run's --no-allow-unauthenticated check
-  return auth.getIdTokenClient(PROXY_URL);
-}
+const keyFile = [
+  path.join(process.cwd(), "service-account.json"),
+  "/workspace/service-account.json",
+].find(p => fs.existsSync(p));
+
+const directAuth = new GoogleAuth({
+  ...(keyFile ? { keyFile } : {}),
+  scopes: "https://www.googleapis.com/auth/cloud-platform",
+});
+
+const idTokenAuth = new GoogleAuth();
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const operationName = searchParams.get("name");
-
     if (!operationName) {
       return NextResponse.json({ error: "Missing operation name" }, { status: 400 });
     }
 
-    const client = await getIdTokenClient();
-    const response = await client.request({
-      url: `${PROXY_URL}/proxy?name=${encodeURIComponent(operationName)}`,
-      method: "GET",
-    });
-
-    return NextResponse.json(response.data, { status: response.status });
+    if (IS_CLOUD_RUN) {
+      // Production: forward to vef-proxy via identity token
+      const client = await idTokenAuth.getIdTokenClient(PROXY_URL);
+      const response = await client.request({
+        url: `${PROXY_URL}/proxy?name=${encodeURIComponent(operationName)}`,
+        method: "GET",
+      });
+      return NextResponse.json(response.data, { status: response.status });
+    } else {
+      // Local: call Vertex AI directly
+      const client = await directAuth.getClient();
+      const projectId = await directAuth.getProjectId();
+      const { token } = await client.getAccessToken();
+      const sanitized = operationName.startsWith("/") ? operationName.slice(1) : operationName;
+      const endpoint = `https://us-central1-aiplatform.googleapis.com/v1/${sanitized}`;
+      const response = await fetch(endpoint, {
+        method: "GET",
+        headers: { "Authorization": `Bearer ${token}`, "X-Goog-User-Project": projectId },
+      });
+      const data = await response.json();
+      return NextResponse.json(data, { status: response.status });
+    }
   } catch (error: any) {
-    console.error("[route GET] Crash:", error.message);
+    console.error("[Proxy GET]", error.message);
     return NextResponse.json({ error: "Internal proxy error" }, { status: 500 });
   }
 }
@@ -37,22 +60,40 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const { endpoint, payload } = await request.json();
-
     if (!endpoint || !payload) {
       return NextResponse.json({ error: "Missing endpoint or payload" }, { status: 400 });
     }
 
-    const client = await getIdTokenClient();
-    const response = await client.request({
-      url: `${PROXY_URL}/proxy`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: { endpoint, payload },
-    });
-
-    return NextResponse.json(response.data, { status: response.status });
+    if (IS_CLOUD_RUN) {
+      // Production: forward to vef-proxy via identity token
+      const client = await idTokenAuth.getIdTokenClient(PROXY_URL);
+      const response = await client.request({
+        url: `${PROXY_URL}/proxy`,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        data: { endpoint, payload },
+      });
+      return NextResponse.json(response.data, { status: response.status });
+    } else {
+      // Local: call Vertex AI directly
+      const client = await directAuth.getClient();
+      const projectId = await directAuth.getProjectId();
+      const { token } = await client.getAccessToken();
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+          "X-Vertex-AI-LLM-Request-Type": "shared",
+          "X-Goog-User-Project": projectId,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      return NextResponse.json(data, { status: response.status });
+    }
   } catch (error: any) {
-    console.error("[route POST] Crash:", error.message);
+    console.error("[Proxy POST]", error.message);
     return NextResponse.json({ error: "Internal proxy error" }, { status: 500 });
   }
 }
