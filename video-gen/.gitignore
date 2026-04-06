@@ -52,3 +52,4 @@ client_secret*.json
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+service-account.json
