@@ -32,7 +32,7 @@ const AppContent = () => {
   const [previewRightLabel, setPreviewRightLabel] = useState("Output");
   
   const { currentProjectId } = useProject();
-  const { operations, logs, setLogs, addLog, handleGenerate, updateOperationStatus } = useGenerationFlow(setActiveView);
+  const { operations, hasMoreOps, loadingMoreOps, loadMoreOps, logs, setLogs, addLog, handleGenerate, updateOperationStatus } = useGenerationFlow(setActiveView);
 
   // Clear preview when switching views or projects
   useEffect(() => {
@@ -69,6 +69,9 @@ const AppContent = () => {
             ) : activeView === "tasks" ? (
               <OperationsPanel
                 operations={operations}
+                hasMore={hasMoreOps}
+                loadingMore={loadingMoreOps}
+                onLoadMore={loadMoreOps}
                 addLog={addLog}
                 onVideoSelect={(url, orig, left, right) => {
                   setPreviewVideoUrl(url);

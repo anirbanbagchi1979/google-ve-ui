@@ -1,14 +1,18 @@
-import { useState, useEffect } from "react";
-import { 
-  collection, 
-  addDoc, 
-  onSnapshot, 
-  query, 
-  orderBy, 
+import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  collection,
+  addDoc,
+  onSnapshot,
+  query,
+  orderBy,
+  limit,
+  startAfter,
+  getDocs,
   Timestamp,
   doc,
   updateDoc,
-  where
+  where,
+  QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { gcsToFirebaseUrl } from "@/utils/gcs";
@@ -16,8 +20,13 @@ import { useConfig } from "@/context/ConfigContext";
 import { useAuth } from "@/context/AuthContext";
 import { useProject } from "@/context/ProjectContext";
 
+const OPS_PAGE_SIZE = 10;
+
 export function useGenerationFlow(setActiveView: (view: string) => void) {
   const [operations, setOperations] = useState<any[]>([]);
+  const [hasMoreOps, setHasMoreOps] = useState(false);
+  const [loadingMoreOps, setLoadingMoreOps] = useState(false);
+  const lastOpDocRef = useRef<QueryDocumentSnapshot | null>(null);
   const [logs, setLogs] = useState<any[]>([]);
   const { config } = useConfig();
   const { user } = useAuth();
@@ -31,26 +40,47 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
     }, ...prev].slice(0, 50));
   };
 
-  // 1. Initial Load Operations
+  // 1. Initial Load Operations — paginated at OPS_PAGE_SIZE, real-time for first page
   useEffect(() => {
     if (!currentProjectId) {
       setOperations([]);
+      setHasMoreOps(false);
+      lastOpDocRef.current = null;
       return;
     }
     const q = query(
-      collection(db, "operations"), 
+      collection(db, "operations"),
       where("projectId", "==", currentProjectId),
-      orderBy("createdAt", "desc")
+      orderBy("createdAt", "desc"),
+      limit(OPS_PAGE_SIZE)
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const ops = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setOperations(ops);
+      lastOpDocRef.current = snapshot.docs[snapshot.docs.length - 1] ?? null;
+      setHasMoreOps(snapshot.docs.length === OPS_PAGE_SIZE);
+      setOperations(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
-
     return () => unsubscribe();
+  }, [currentProjectId]);
+
+  // Load next page of operations (no real-time for older pages)
+  const loadMoreOps = useCallback(async () => {
+    if (!currentProjectId || !lastOpDocRef.current) return;
+    setLoadingMoreOps(true);
+    try {
+      const q = query(
+        collection(db, "operations"),
+        where("projectId", "==", currentProjectId),
+        orderBy("createdAt", "desc"),
+        startAfter(lastOpDocRef.current),
+        limit(OPS_PAGE_SIZE)
+      );
+      const snap = await getDocs(q);
+      lastOpDocRef.current = snap.docs[snap.docs.length - 1] ?? null;
+      setHasMoreOps(snap.docs.length === OPS_PAGE_SIZE);
+      setOperations(prev => [...prev, ...snap.docs.map(d => ({ id: d.id, ...d.data() }))]);
+    } finally {
+      setLoadingMoreOps(false);
+    }
   }, [currentProjectId]);
 
   // 2. Background Polling Service for Incomplete Tasks
@@ -224,6 +254,9 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
 
   return {
     operations,
+    hasMoreOps,
+    loadingMoreOps,
+    loadMoreOps,
     logs,
     setLogs,
     addLog,

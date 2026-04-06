@@ -39,6 +39,9 @@ interface Operation {
 
 interface OperationsPanelProps {
   operations: Operation[];
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
   addLog: (log: any) => void;
   onVideoSelect?: (url: string, originalUrl?: string, leftLabel?: string, rightLabel?: string) => void;
   onStatusUpdate?: (id: string, status: "DONE" | "ERROR", result?: any, error?: any) => Promise<void>;
@@ -51,7 +54,7 @@ const DATE_OPTIONS = [
   { label: "30 days", value: "30d" },
 ];
 
-const OperationsPanel = ({ operations, addLog, onVideoSelect, onStatusUpdate }: OperationsPanelProps) => {
+const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog, onVideoSelect, onStatusUpdate }: OperationsPanelProps) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [checkingIds, setCheckingIds] = useState<Set<string>>(new Set());
   const [checkResults, setCheckResults] = useState<Record<string, any>>({});
@@ -535,6 +538,16 @@ const OperationsPanel = ({ operations, addLog, onVideoSelect, onStatusUpdate }: 
                   </div>
                 );
               })}
+              {hasMore && (
+                <button
+                  onClick={onLoadMore}
+                  disabled={loadingMore}
+                  className="w-full py-2 mt-1 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-500 hover:bg-slate-100 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 bg-white"
+                >
+                  {loadingMore && <Loader2 size={12} className="animate-spin" />}
+                  {loadingMore ? "Loading…" : "Load 10 more"}
+                </button>
+              )}
           </div>
         )}
       </div>
