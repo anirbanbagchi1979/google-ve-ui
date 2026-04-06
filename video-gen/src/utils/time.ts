@@ -35,6 +35,23 @@ export const formatBytes = (bytes: number): string => {
 };
 
 /**
+ * Detect video aspect ratio from a File object by loading metadata.
+ */
+export const detectAspectRatioFromFile = (file: File): Promise<"16:9" | "9:16"> =>
+  new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const vid = document.createElement("video");
+    vid.preload = "metadata";
+    vid.onloadedmetadata = () => {
+      resolve(vid.videoWidth >= vid.videoHeight ? "16:9" : "9:16");
+      URL.revokeObjectURL(url);
+      vid.src = "";
+    };
+    vid.onerror = () => { resolve("16:9"); URL.revokeObjectURL(url); };
+    vid.src = url;
+  });
+
+/**
  * Format seconds as MM:SS string.
  */
 export const formatTime = (time: number): string => {
