@@ -316,6 +316,11 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
                       {formatBytes(vid.size)}
                     </div>
                   )}
+                  {vid.aspectRatio && (
+                    <div className="absolute top-1 right-1 px-1.5 py-0.5 bg-black/60 text-white text-[9px] font-bold rounded">
+                      {vid.aspectRatio}
+                    </div>
+                  )}
                   {selectedUrl === vid.url && (
                     <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-blue-500 text-white text-[9px] font-bold rounded">✓</div>
                   )}

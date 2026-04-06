@@ -377,6 +377,11 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
                         {formatBytes(vid.size)}
                       </div>
                     )}
+                    {vid.aspectRatio && (
+                      <div className="absolute top-1 right-1 px-1.5 py-0.5 bg-black/60 text-white text-[9px] font-bold rounded pointer-events-none">
+                        {vid.aspectRatio}
+                      </div>
+                    )}
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                       <PlayCircle size={20} className="text-white" />
                     </div>
