@@ -139,6 +139,42 @@ firebase deploy --only hosting
 
 ---
 
+## Security
+
+### Proxy authentication (`ENFORCE_PROXY_AUTH`)
+
+All Vertex AI calls go through `/api/proxy`. The proxy enforces caller identity before forwarding:
+
+1. Validates the Firebase ID token from the `Authorization: Bearer` header (signed by this Firebase project only)
+2. Checks the verified email against `ADMIN_EMAILS` and the Firestore `allowlist` collection
+3. Returns `401` (missing/invalid token) or `403` (not on allowlist) otherwise
+
+| Environment | Value | Effect |
+|---|---|---|
+| Local dev | `ENFORCE_PROXY_AUTH=false` | Auth skipped |
+| Production | `ENFORCE_PROXY_AUTH=true` | Full enforcement |
+
+To toggle in production:
+```bash
+gcloud run services update ssrvexpuibb \
+  --region us-central1 \
+  --project bagchi-genai-bb \
+  --set-env-vars ENFORCE_PROXY_AUTH=true
+```
+
+### Remaining open items
+
+| # | Issue | Priority |
+|---|---|---|
+| 2 | SSRF — `endpoint` param not allowlisted in proxy | CRITICAL |
+| 4 | GCP access token stored in localStorage | HIGH |
+| 6 | No rate limiting on `/api/proxy` | MEDIUM |
+| 7 | No Firestore security rules committed to repo | MEDIUM |
+| 8 | `service-account.json` in repo (private only — move to Secret Manager) | LOW |
+| 9 | No CSP / security headers in Next.js config | LOW |
+
+---
+
 ## Authentication
 
 Access is restricted to:
