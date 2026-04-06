@@ -340,6 +340,20 @@ const OperationsPanel = ({ operations, addLog, onVideoSelect, onStatusUpdate }: 
                       <h4 className="text-[13px] font-bold text-slate-800 truncate">
                         {op.type === "upscale" ? "4K Video Upscale" : op.type === "transform" ? "Video Transform" : "Vertex AI Generation"}
                       </h4>
+                      {op.type === "upscale" && (
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {(op as any).resolution && (
+                            <span className="px-1.5 py-0.5 bg-blue-50 border border-blue-100 text-blue-600 text-[9px] font-bold rounded uppercase">
+                              {(op as any).resolution}
+                            </span>
+                          )}
+                          {(op as any).compressionQuality && (
+                            <span className="px-1.5 py-0.5 bg-blue-50 border border-blue-100 text-blue-600 text-[9px] font-bold rounded">
+                              {(op as any).compressionQuality.replace(/_/g, " ")}
+                            </span>
+                          )}
+                        </div>
+                      )}
                       {op.type === "transform" && (
                         <div className="flex flex-wrap gap-1.5 mt-1.5">
                           {(op as any).videoTransformStrength != null && (

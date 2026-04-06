@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useState, useEffect } from "react";
-import { 
+import {
   Play,
   Pause,
   Volume2,
@@ -11,7 +11,8 @@ import {
   ZoomOut,
   RefreshCcw,
   Eye,
-  EyeOff
+  EyeOff,
+  Loader2
 } from "lucide-react";
 
 interface PreviewAreaProps {
@@ -22,8 +23,9 @@ interface PreviewAreaProps {
 }
 
 const PreviewArea = ({ videoUrl, originalVideoUrl, leftLabel = "Input Video", rightLabel = "Output" }: PreviewAreaProps) => {
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const origVideoRef = useRef<HTMLVideoElement>(null);
 
@@ -35,6 +37,7 @@ const PreviewArea = ({ videoUrl, originalVideoUrl, leftLabel = "Input Video", ri
   const [showOriginal, setShowOriginal] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [videoAspect, setVideoAspect] = useState<number | null>(null);
 
   const formatTime = (time: number) => {
     const m = Math.floor(time / 60).toString().padStart(2, '0');
@@ -54,6 +57,15 @@ const PreviewArea = ({ videoUrl, originalVideoUrl, leftLabel = "Input Video", ri
     }
     setIsPlaying(!isPlaying);
   };
+
+  // Reset state when video URL changes
+  useEffect(() => {
+    if (videoUrl) {
+      setIsLoading(true);
+      setIsPlaying(false);
+      setVideoAspect(null);
+    }
+  }, [videoUrl]);
 
   // Sync videos if side-by-side
   useEffect(() => {
@@ -118,9 +130,20 @@ const PreviewArea = ({ videoUrl, originalVideoUrl, leftLabel = "Input Video", ri
     transition: isDragging ? 'none' : 'transform 0.1s ease-out'
   };
 
+  const isPortrait = videoAspect !== null && videoAspect < 1;
+
   return (
-    <div className="flex-1 flex flex-col bg-slate-100 h-screen overflow-hidden p-8">
-      <div className="flex-1 relative bg-black rounded-2xl overflow-hidden shadow-2xl border border-slate-200">
+    <div className="flex-1 flex items-center justify-center bg-slate-100 h-screen overflow-hidden pt-8 px-8 pb-20">
+      <div
+        className="relative bg-black rounded-2xl overflow-hidden shadow-2xl border border-slate-200 transition-all duration-300"
+        style={
+          videoAspect
+            ? isPortrait
+              ? { aspectRatio: videoAspect, height: "100%", maxHeight: "100%", maxWidth: "100%" }
+              : { aspectRatio: videoAspect, width: "100%", maxWidth: "100%", maxHeight: "100%" }
+            : { width: "100%", height: "100%" }
+        }
+      >
         
         {/* Persistent Title Headers */}
         {isSplit && (
@@ -154,10 +177,10 @@ const PreviewArea = ({ videoUrl, originalVideoUrl, leftLabel = "Input Video", ri
                 src={originalVideoUrl!}
                 className="w-full h-full object-contain"
                 style={zoomStyle}
-                autoPlay
                 loop
                 muted={isMuted}
                 playsInline
+                preload="auto"
               />
             </div>
           )}
@@ -168,18 +191,36 @@ const PreviewArea = ({ videoUrl, originalVideoUrl, leftLabel = "Input Video", ri
               src={videoUrl}
               className="w-full h-full object-contain"
               style={zoomStyle}
-              autoPlay
               loop
               muted={isMuted}
               playsInline
+              preload="auto"
               onPlay={() => setIsPlaying(true)}
               onPause={() => setIsPlaying(false)}
-              onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+              onLoadedMetadata={(e) => {
+                setDuration(e.currentTarget.duration);
+                const { videoWidth: w, videoHeight: h } = e.currentTarget;
+                if (w > 0 && h > 0) setVideoAspect(w / h);
+              }}
               onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+              onCanPlay={(e) => {
+                setIsLoading(false);
+                e.currentTarget.play();
+                setIsPlaying(true);
+                if (origVideoRef.current) origVideoRef.current.play();
+              }}
             />
           </div>
 
         </div>
+
+        {/* Loading overlay */}
+        {isLoading && (
+          <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm gap-3">
+            <Loader2 size={36} className="text-white animate-spin" />
+            <p className="text-white/70 text-xs font-semibold uppercase tracking-widest">Buffering…</p>
+          </div>
+        )}
 
         {/* Time and Frame Overlay */}
         <div className="absolute bottom-6 left-8 px-4 py-2 bg-black/60 backdrop-blur-xl rounded-lg border border-white/10 flex items-center gap-4 z-30 pointer-events-none text-white font-mono text-xs drop-shadow-2xl font-medium tracking-tight">

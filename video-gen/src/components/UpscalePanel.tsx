@@ -16,6 +16,7 @@ import { ref, listAll, getDownloadURL, uploadBytesResumable } from "firebase/sto
 import { collection, getDocs, query, limit, where, addDoc, serverTimestamp } from "firebase/firestore";
 import { useConfig } from "@/context/ConfigContext";
 import { useProject } from "@/context/ProjectContext";
+import { formatBytes } from "@/utils/time";
 
 interface UpscalePanelProps {
   onGenerate?: (payload: any, isLongRunning: boolean) => void;
@@ -42,17 +43,40 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Video library
-  const [videos, setVideos] = useState<{ id: string; name: string; url: string }[]>([]);
+  const [videos, setVideos] = useState<{ id: string; name: string; url: string; size?: number }[]>([]);
   const [loadingAssets, setLoadingAssets] = useState(true);
 
   // Selection
   const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
-  const selectVideo = (url: string | null) => { setSelectedUrl(url); onVideoSelect?.(url); };
+
+  const detectAndSetAspectRatio = (url: string) => {
+    const vid = document.createElement("video");
+    vid.preload = "metadata";
+    vid.onloadedmetadata = () => {
+      const { videoWidth: w, videoHeight: h } = vid;
+      if (w > 0 && h > 0) {
+        setAspectRatio(w >= h ? "16:9" : "9:16");
+      }
+      vid.src = "";
+    };
+    vid.src = url;
+  };
+
+  const selectVideo = (url: string | null) => {
+    setSelectedUrl(url);
+    onVideoSelect?.(url);
+    if (url) detectAndSetAspectRatio(url);
+  };
 
   // Upload state
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Options
+  const [resolution, setResolution] = useState<"1080p" | "4k">("4k");
+  const [compressionQuality, setCompressionQuality] = useState<"optimized" | "lossless" | "lossless_16bit_png">("optimized");
+  const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16">("16:9");
 
   // Submit state
   const [submitting, setSubmitting] = useState(false);
@@ -73,7 +97,7 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
         where("projectId", "==", currentProjectId),
         limit(20)
       ));
-      const list = snap.docs.map(d => ({ id: d.id, name: d.data().name || "Untitled", url: d.data().url || "" }));
+      const list = snap.docs.map(d => ({ id: d.id, name: d.data().name || "Untitled", url: d.data().url || "", size: d.data().size || undefined }));
       setVideos(list.reverse());
     } catch (e) {
       console.error("Error fetching videos", e);
@@ -139,9 +163,9 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
         }],
         parameters: {
           task: "upscale",
-          compressionQuality: "optimized",
-          resolution: "4k",
-          aspectRatio: "16:9",
+          compressionQuality,
+          resolution,
+          aspectRatio,
           storageUri: outputUri,
           experiments: { modelName: "veo3p1_upscale" }
         }
@@ -253,6 +277,11 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <PlayCircle size={20} className="text-white" />
                   </div>
+                  {vid.size && (
+                    <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-black/60 text-white text-[9px] font-bold rounded">
+                      {formatBytes(vid.size)}
+                    </div>
+                  )}
                   {selectedUrl === vid.url && (
                     <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-blue-500 text-white text-[9px] font-bold rounded">✓</div>
                   )}
@@ -261,10 +290,81 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
             </div>
           )}
         </div>
+
+        {/* Options */}
+        <div className="space-y-3 pt-1 border-t border-slate-100">
+          <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Output Settings</p>
+
+          {/* Aspect Ratio */}
+          <div className="space-y-1.5">
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Aspect Ratio</span>
+            <div className="flex items-end gap-3">
+              {([
+                { value: "16:9", w: 48, h: 27 },
+                { value: "9:16", w: 27, h: 48 },
+              ] as const).map(({ value, w, h }) => (
+                <button
+                  key={value}
+                  onClick={() => setAspectRatio(value)}
+                  className={`flex flex-col items-center gap-1.5 px-4 py-2.5 rounded-xl border-2 transition-all ${
+                    aspectRatio === value
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-slate-200 bg-white hover:border-slate-300"
+                  }`}
+                >
+                  <div
+                    className={`rounded border-2 transition-colors ${
+                      aspectRatio === value ? "border-blue-500 bg-blue-200" : "border-slate-300 bg-slate-200"
+                    }`}
+                    style={{ width: w, height: h }}
+                  />
+                  <span className={`text-[10px] font-bold tracking-wide ${aspectRatio === value ? "text-blue-600" : "text-slate-400"}`}>
+                    {value}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Resolution + Compression */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-lg p-0.5">
+              {(["1080p", "4k"] as const).map(r => (
+                <button
+                  key={r}
+                  onClick={() => setResolution(r)}
+                  className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all ${
+                    resolution === r ? "bg-blue-600 text-white shadow-sm" : "text-slate-400 hover:text-slate-600"
+                  }`}
+                >
+                  {r === "4k" ? "4K" : "1080p"}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-lg p-0.5 flex-1">
+              {([
+                { value: "optimized", label: "Opt" },
+                { value: "lossless", label: "Lossless" },
+                { value: "lossless_16bit_png", label: "16-bit" },
+              ] as const).map(({ value, label }) => (
+                <button
+                  key={value}
+                  onClick={() => setCompressionQuality(value)}
+                  className={`flex-1 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all ${
+                    compressionQuality === value ? "bg-blue-600 text-white shadow-sm" : "text-slate-400 hover:text-slate-600"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
       </div>
 
-      {/* Submit bar — padded above the fixed debug console bar (h-12 = 48px) */}
-      <div className="p-4 pb-16 border-t border-slate-100 bg-slate-50 shrink-0 space-y-3">
+      {/* Submit bar */}
+      <div className="p-4 pb-16 border-t border-slate-100 bg-slate-50 shrink-0 space-y-2">
         {confirmed && (
           <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-semibold px-3 py-2 rounded-lg">
             <CheckCircle size={14} /> Job submitted! Track progress in the Tasks panel.
@@ -283,7 +383,7 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
           {submitting ? (
             <><Loader2 size={16} className="animate-spin" /> Submitting…</>
           ) : (
-            <><Maximize2 size={16} /> Upscale to 4K</>
+            <><Maximize2 size={16} /> Upscale to {resolution === "4k" ? "4K" : "1080p"}</>
           )}
         </button>
         {!selectedUrl && (

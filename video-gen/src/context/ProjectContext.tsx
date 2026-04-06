@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { collection, addDoc, query, where, onSnapshot, serverTimestamp, orderBy } from "firebase/firestore";
+import { collection, addDoc, query, onSnapshot, serverTimestamp, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "./AuthContext";
 
@@ -44,9 +44,9 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
     }
   }, []);
 
-  // Listen to user's projects
+  // Listen to all projects (shared across all authenticated users)
   useEffect(() => {
-    if (!user?.email) {
+    if (!user) {
       setProjects([]);
       setLoading(false);
       return;
@@ -54,7 +54,6 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
 
     const q = query(
       collection(db, "projects"),
-      where("userEmail", "==", user.email),
       orderBy("createdAt", "desc")
     );
 
@@ -82,7 +81,7 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
     });
 
     return () => unsubscribe();
-  }, [user?.email, currentProjectId, loading]);
+  }, [user, currentProjectId, loading]);
 
   const createProject = async (name: string) => {
     if (!user?.email) return null;

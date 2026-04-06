@@ -18,6 +18,7 @@ import { collection, getDocs, query, limit, where, addDoc, serverTimestamp } fro
 import { useConfig } from "@/context/ConfigContext";
 import { useProject } from "@/context/ProjectContext";
 import { getGcsUri } from "@/utils/gcs";
+import { formatBytes } from "@/utils/time";
 
 interface TransformPanelProps {
   onGenerate?: (payload: any, isLongRunning: boolean) => void;
@@ -31,7 +32,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
   const imageFileInputRef = useRef<HTMLInputElement>(null);
   const maskFileInputRef = useRef<HTMLInputElement>(null);
 
-  const [videos, setVideos] = useState<{ id: string; name: string; url: string }[]>([]);
+  const [videos, setVideos] = useState<{ id: string; name: string; url: string; size?: number }[]>([]);
   const [loadingAssets, setLoadingAssets] = useState(true);
 
   const [selectedVideoUrl, setSelectedVideoUrl] = useState<string | null>(null);
@@ -56,6 +57,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
 
   const [maskVideos, setMaskVideos] = useState<{ id: string; name: string; url: string }[]>([]);
   const [loadingMasks, setLoadingMasks] = useState(true);
+  const [showMaskLibrary, setShowMaskLibrary] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
@@ -70,7 +72,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
         where("projectId", "==", currentProjectId),
         limit(20)
       ));
-      setVideos(snap.docs.map(d => ({ id: d.id, name: d.data().name || "Untitled", url: d.data().url || "" })).reverse());
+      setVideos(snap.docs.map(d => ({ id: d.id, name: d.data().name || "Untitled", url: d.data().url || "", size: d.data().size || undefined })).reverse());
     } catch (e) {
       console.error("Error fetching videos", e);
     } finally {
@@ -331,6 +333,11 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
                       onMouseEnter={e => e.currentTarget.play()}
                       onMouseLeave={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0.5; }}
                     />
+                    {vid.size && (
+                      <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-black/60 text-white text-[9px] font-bold rounded pointer-events-none">
+                        {formatBytes(vid.size)}
+                      </div>
+                    )}
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                       <PlayCircle size={20} className="text-white" />
                     </div>
@@ -395,7 +402,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
               Mask Video <span className="text-slate-400 normal-case font-normal">(optional)</span>
             </p>
             {maskVideoUrl && (
-              <button onClick={() => setMaskVideoUrl(null)} className="text-[10px] text-red-400 hover:text-red-600 font-semibold transition-colors">
+              <button onClick={() => { setMaskVideoUrl(null); setShowMaskLibrary(false); }} className="text-[10px] text-red-400 hover:text-red-600 font-semibold transition-colors">
                 Remove
               </button>
             )}
@@ -413,64 +420,82 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
                 onMouseEnter={e => e.currentTarget.play()}
                 onMouseLeave={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0.5; }}
               />
+              <button
+                onClick={() => { setMaskVideoUrl(null); setShowMaskLibrary(false); }}
+                className="absolute top-1.5 right-1.5 p-1 bg-black/50 rounded-full text-white hover:bg-black/70 transition-colors"
+              >
+                <X size={12} />
+              </button>
               <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-violet-600 text-white text-[9px] font-bold rounded flex items-center gap-1">
                 <Film size={9} /> Mask Selected
               </div>
             </div>
           ) : (
             <>
-              {/* Mask library grid */}
-              {loadingMasks ? (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 size={16} className="text-slate-300 animate-spin" />
-                </div>
-              ) : maskVideos.length > 0 ? (
-                <div className="grid grid-cols-3 gap-1.5">
-                  {maskVideos.map(mv => (
-                    <div
-                      key={mv.id}
-                      onClick={() => setMaskVideoUrl(mv.url)}
-                      className="relative aspect-video rounded-lg overflow-hidden border-2 border-slate-200 hover:border-violet-400 cursor-pointer transition-all group active:scale-95"
-                      title={mv.name}
+              {/* Empty state with actions */}
+              {!showMaskLibrary && (
+                <div className="flex gap-2">
+                  {maskVideos.length > 0 && (
+                    <button
+                      onClick={() => setShowMaskLibrary(true)}
+                      className="flex-1 py-2 border border-dashed border-slate-300 rounded-lg text-[11px] font-semibold text-slate-500 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5"
                     >
-                      <video
-                        src={mv.url + "#t=0.5"}
-                        className="w-full h-full object-cover"
-                        preload="metadata"
-                        muted
-                        playsInline
-                        onMouseEnter={e => e.currentTarget.play()}
-                        onMouseLeave={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0.5; }}
-                      />
-                      <div className="absolute inset-0 bg-violet-500/0 group-hover:bg-violet-500/20 transition-colors flex items-center justify-center">
-                        <PlayCircle size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </div>
-                    </div>
-                  ))}
+                      <Film size={12} /> Browse library
+                    </button>
+                  )}
+                  <button
+                    onClick={() => !isUploadingMask && maskFileInputRef.current?.click()}
+                    className="flex-1 py-2 border border-dashed border-slate-300 rounded-lg text-[11px] font-semibold text-slate-500 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    {isUploadingMask ? (
+                      <><Loader2 size={12} className="animate-spin" /> {Math.round(maskUploadProgress)}%</>
+                    ) : (
+                      <><Upload size={12} /> Upload mask</>
+                    )}
+                  </button>
                 </div>
-              ) : null}
+              )}
 
-              {/* Upload zone */}
-              <div
-                onClick={() => !isUploadingMask && maskFileInputRef.current?.click()}
-                className={`relative h-16 rounded-xl border-2 border-dashed flex items-center justify-center gap-2 transition-colors
-                  ${isUploadingMask ? "border-violet-300 bg-violet-50 cursor-not-allowed" :
-                  "border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-violet-300 cursor-pointer"}`}
-              >
-                {isUploadingMask ? (
-                  <div className="flex items-center gap-2">
-                    <Loader2 size={14} className="text-violet-500 animate-spin" />
-                    <span className="text-[10px] font-bold text-slate-500">{Math.round(maskUploadProgress)}% Uploading…</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 text-slate-400">
-                    <Upload size={13} />
-                    <span className="text-[11px] font-semibold text-slate-500">
-                      {maskVideos.length > 0 ? "Upload new mask video" : "Upload mask video"}
-                    </span>
-                  </div>
-                )}
-              </div>
+              {/* Mask library grid (shown on demand) */}
+              {showMaskLibrary && (
+                <>
+                  {loadingMasks ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 size={16} className="text-slate-300 animate-spin" />
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {maskVideos.map(mv => (
+                        <div
+                          key={mv.id}
+                          onClick={() => { setMaskVideoUrl(mv.url); setShowMaskLibrary(false); }}
+                          className="relative aspect-video rounded-lg overflow-hidden border-2 border-slate-200 hover:border-violet-400 cursor-pointer transition-all group active:scale-95"
+                          title={mv.name}
+                        >
+                          <video
+                            src={mv.url + "#t=0.5"}
+                            className="w-full h-full object-cover"
+                            preload="metadata"
+                            muted
+                            playsInline
+                            onMouseEnter={e => e.currentTarget.play()}
+                            onMouseLeave={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0.5; }}
+                          />
+                          <div className="absolute inset-0 bg-violet-500/0 group-hover:bg-violet-500/20 transition-colors flex items-center justify-center">
+                            <PlayCircle size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => !isUploadingMask && maskFileInputRef.current?.click()}
+                    className="w-full py-2 border border-dashed border-slate-300 rounded-lg text-[11px] font-semibold text-slate-500 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <Upload size={12} /> Upload new mask
+                  </button>
+                </>
+              )}
             </>
           )}
 
