@@ -3,7 +3,6 @@
 import React from "react";
 import {
   History,
-  User,
   Settings,
   Maximize2,
   Wand2,
@@ -23,7 +22,11 @@ const Sidebar = ({ activeView, onSelect, isAdmin }: SidebarProps) => {
     { id: "transform", icon: <Wand2 size={20} />, label: "Transform" },
     { id: "perf", icon: <Drama size={20} />, label: "Performance" },
     { id: "tasks", icon: <History size={20} />, label: "Tasks" },
+  ];
+
+  const bottomItems = [
     { id: "settings", icon: <Settings size={20} />, label: "Settings" },
+    { id: "admin", icon: <ShieldCheck size={20} />, label: "Admin" },
   ];
 
   return (
@@ -55,26 +58,28 @@ const Sidebar = ({ activeView, onSelect, isAdmin }: SidebarProps) => {
       
       <div className="w-8 border-t border-slate-200 my-2 shrink-0" />
 
-      <button
-        onClick={() => onSelect("admin")}
-        className={`flex flex-col items-center gap-1.5 transition-all group mt-auto ${
-          activeView === "admin" ? "text-slate-800" : "text-slate-400 hover:text-slate-600"
-        }`}
-      >
-        <div className={`p-2.5 rounded-xl transition-all duration-300 ${
-          activeView === "admin"
-            ? "bg-slate-100 text-slate-800 shadow-sm ring-1 ring-slate-200"
-            : "bg-transparent group-hover:bg-slate-50"
-        }`}>
-          <ShieldCheck size={20} />
-        </div>
-        <span className={`text-[9px] font-bold uppercase tracking-widest ${
-          activeView === "admin" ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-        }`}>Admin</span>
-      </button>
-      <button className="text-slate-400 hover:text-slate-900 p-2 mt-2">
-        <User size={24} />
-      </button>
+      <div className="flex flex-col gap-4 items-center pb-4">
+        {bottomItems.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => onSelect(item.id)}
+            className={`flex flex-col items-center gap-1.5 transition-all group ${
+              activeView === item.id ? "text-slate-800" : "text-slate-400 hover:text-slate-600"
+            }`}
+          >
+            <div className={`p-2.5 rounded-xl transition-all duration-300 ${
+              activeView === item.id
+                ? "bg-slate-100 text-slate-800 shadow-sm ring-1 ring-slate-200"
+                : "bg-transparent group-hover:bg-slate-50"
+            }`}>
+              {item.icon}
+            </div>
+            <span className={`text-[9px] font-bold uppercase tracking-widest ${
+              activeView === item.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            }`}>{item.label}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 };
