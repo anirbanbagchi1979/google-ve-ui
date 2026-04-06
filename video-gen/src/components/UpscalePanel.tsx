@@ -243,73 +243,96 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
           {hasMore && <LoadMoreButton loading={loadingMore} onClick={loadMoreVideos} />}
         </div>
 
-        {/* Options */}
-        <div className="space-y-3 pt-1 border-t border-slate-100">
+        {/* Output Settings */}
+        <div className="space-y-2 pt-1 border-t border-slate-100">
           <SectionLabel>Output Settings</SectionLabel>
 
-          {/* Aspect Ratio */}
-          <div className="space-y-1.5">
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Aspect Ratio</span>
-            <div className="flex items-end gap-3">
-              {([
-                { value: "16:9", w: 48, h: 27 },
-                { value: "9:16", w: 27, h: 48 },
-              ] as const).map(({ value, w, h }) => (
-                <button
-                  key={value}
-                  onClick={() => setAspectRatio(value)}
-                  className={`flex flex-col items-center gap-1.5 px-4 py-2.5 rounded-xl border-2 transition-all ${
-                    aspectRatio === value
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-slate-200 bg-white hover:border-slate-300"
-                  }`}
-                >
-                  <div
-                    className={`rounded border-2 transition-colors ${
-                      aspectRatio === value ? "border-blue-500 bg-blue-200" : "border-slate-300 bg-slate-200"
-                    }`}
-                    style={{ width: w, height: h }}
-                  />
-                  <span className={`text-[10px] font-bold tracking-wide ${aspectRatio === value ? "text-blue-600" : "text-slate-400"}`}>
-                    {value}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 divide-y divide-slate-100 overflow-hidden">
 
-          {/* Resolution + Compression */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-lg p-0.5">
-              {(["1080p", "4k"] as const).map(r => (
-                <button
-                  key={r}
-                  onClick={() => setResolution(r)}
-                  className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all ${
-                    resolution === r ? "bg-blue-600 text-white shadow-sm" : "text-slate-400 hover:text-slate-600"
-                  }`}
-                >
-                  {r === "4k" ? "4K" : "1080p"}
-                </button>
-              ))}
+            {/* Aspect Ratio */}
+            <div className="flex items-center gap-3 px-3 py-2.5">
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-bold text-slate-700">Aspect Ratio</p>
+                <p className="text-[9px] text-slate-400">Output frame orientation</p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {([
+                  { value: "16:9", w: 26, h: 15 },
+                  { value: "9:16", w: 15, h: 26 },
+                ] as const).map(({ value, w, h }) => (
+                  <button
+                    key={value}
+                    onClick={() => setAspectRatio(value)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border-2 transition-all ${
+                      aspectRatio === value
+                        ? "border-blue-500 bg-blue-50 text-blue-600"
+                        : "border-slate-200 bg-white text-slate-400 hover:border-slate-300"
+                    }`}
+                  >
+                    <div
+                      className={`rounded-sm border-2 shrink-0 transition-colors ${
+                        aspectRatio === value ? "border-blue-500 bg-blue-200" : "border-slate-300 bg-slate-200"
+                      }`}
+                      style={{ width: w, height: h }}
+                    />
+                    <span className="text-[10px] font-bold">{value}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-lg p-0.5 flex-1">
-              {([
-                { value: "optimized", label: "Opt" },
-                { value: "lossless", label: "Lossless" },
-                { value: "lossless_16bit_png", label: "16-bit" },
-              ] as const).map(({ value, label }) => (
-                <button
-                  key={value}
-                  onClick={() => setCompressionQuality(value)}
-                  className={`flex-1 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all ${
-                    compressionQuality === value ? "bg-blue-600 text-white shadow-sm" : "text-slate-400 hover:text-slate-600"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+
+            {/* Resolution */}
+            <div className="flex items-center gap-3 px-3 py-2.5">
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-bold text-slate-700">Resolution</p>
+                <p className="text-[9px] text-slate-400">{resolution === "4k" ? "3840 × 2160" : "1920 × 1080"}</p>
+              </div>
+              <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-0.5">
+                {(["1080p", "4k"] as const).map(r => (
+                  <button
+                    key={r}
+                    onClick={() => setResolution(r)}
+                    className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${
+                      resolution === r ? "bg-blue-600 text-white shadow-sm" : "text-slate-400 hover:text-slate-600"
+                    }`}
+                  >
+                    {r === "4k" ? "4K" : "1080p"}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {/* Compression */}
+            <div className="px-3 py-2.5 space-y-2">
+              <div>
+                <p className="text-[11px] font-bold text-slate-700">Compression</p>
+                <p className="text-[9px] text-slate-400">
+                  {compressionQuality === "optimized"       ? "Smaller file, great quality" :
+                   compressionQuality === "lossless"        ? "Full quality, larger file" :
+                                                             "Maximum fidelity, PNG frames"}
+                </p>
+              </div>
+              <div className="flex gap-1.5">
+                {([
+                  { value: "optimized",        label: "Optimized" },
+                  { value: "lossless",         label: "Lossless" },
+                  { value: "lossless_16bit_png", label: "16-bit PNG" },
+                ] as const).map(({ value, label }) => (
+                  <button
+                    key={value}
+                    onClick={() => setCompressionQuality(value)}
+                    className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
+                      compressionQuality === value
+                        ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                        : "bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
           </div>
         </div>
 

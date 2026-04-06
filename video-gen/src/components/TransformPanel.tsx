@@ -486,61 +486,89 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
           />
         </div>
 
-        {/* Control Strength */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <SectionLabel>Control Strength</SectionLabel>
-            <span className="text-[12px] font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
-              {strength.toFixed(2)}
-            </span>
-          </div>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.01"
-            value={strength}
-            onChange={e => setStrength(parseFloat(e.target.value))}
-            className="w-full h-2 bg-slate-200 rounded-full appearance-none cursor-pointer accent-blue-500"
-          />
-          <div className="flex justify-between text-[9px] text-slate-400 font-mono">
-            <span>0.00</span>
-            <span>0.50</span>
-            <span>1.00</span>
-          </div>
-        </div>
+        {/* Output Settings */}
+        <div className="space-y-2 pt-1 border-t border-slate-100">
+          <SectionLabel>Output Settings</SectionLabel>
 
-        {/* Diffusion Steps */}
-        <div className="space-y-2">
-          <SectionLabel>Diffusion Steps <span className="text-slate-400 normal-case font-normal">(1–250)</span></SectionLabel>
-          <input
-            type="number"
-            min="1"
-            max="250"
-            value={stepsInput}
-            onChange={e => handleStepsChange(e.target.value)}
-            onBlur={handleStepsBlur}
-            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
-          />
-        </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 divide-y divide-slate-100 overflow-hidden">
 
-        {/* Compression Quality */}
-        <div className="space-y-2">
-          <SectionLabel>Compression Quality</SectionLabel>
-          <div className="flex gap-2">
-            {(["optimized", "lossless"] as const).map(q => (
-              <button
-                key={q}
-                onClick={() => setCompressionQuality(q)}
-                className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
-                  compressionQuality === q
-                    ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                    : "bg-slate-50 text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600"
-                }`}
-              >
-                {q.charAt(0).toUpperCase() + q.slice(1)}
-              </button>
-            ))}
+            {/* Control Strength */}
+            <div className="px-3 py-2.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-bold text-slate-700">Control Strength</p>
+                  <p className="text-[9px] text-slate-400">
+                    {strength < 0.35 ? "Subtle — preserve original motion" :
+                     strength < 0.7  ? "Balanced — moderate transformation" :
+                                       "Strong — heavy transformation"}
+                  </p>
+                </div>
+                <span className="text-[12px] font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100 shrink-0">
+                  {strength.toFixed(2)}
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={strength}
+                onChange={e => setStrength(parseFloat(e.target.value))}
+                className="w-full h-2 bg-slate-200 rounded-full appearance-none cursor-pointer accent-blue-500"
+              />
+              <div className="flex justify-between text-[9px] text-slate-400 font-mono">
+                <span>Subtle</span>
+                <span>Balanced</span>
+                <span>Strong</span>
+              </div>
+            </div>
+
+            {/* Diffusion Steps */}
+            <div className="flex items-center gap-3 px-3 py-2.5">
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-bold text-slate-700">Diffusion Steps</p>
+                <p className="text-[9px] text-slate-400">
+                  {steps < 50  ? "Fast, lower quality" :
+                   steps < 150 ? "Balanced speed & quality" :
+                                 "Slower, higher quality"}
+                </p>
+              </div>
+              <input
+                type="number"
+                min="1"
+                max="250"
+                value={stepsInput}
+                onChange={e => handleStepsChange(e.target.value)}
+                onBlur={handleStepsBlur}
+                className="w-20 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-mono text-center focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
+              />
+            </div>
+
+            {/* Compression */}
+            <div className="px-3 py-2.5 space-y-2">
+              <div>
+                <p className="text-[11px] font-bold text-slate-700">Compression</p>
+                <p className="text-[9px] text-slate-400">
+                  {compressionQuality === "optimized" ? "Smaller file, great quality" : "Full quality, larger file"}
+                </p>
+              </div>
+              <div className="flex gap-1.5">
+                {(["optimized", "lossless"] as const).map(q => (
+                  <button
+                    key={q}
+                    onClick={() => setCompressionQuality(q)}
+                    className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
+                      compressionQuality === q
+                        ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                        : "bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600"
+                    }`}
+                  >
+                    {q === "optimized" ? "Optimized" : "Lossless"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
