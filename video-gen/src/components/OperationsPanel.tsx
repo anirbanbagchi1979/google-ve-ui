@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { useConfig } from "@/context/ConfigContext";
+import { formatBytes } from "@/utils/time";
 
 interface Operation {
   id: string;
@@ -352,10 +353,20 @@ const OperationsPanel = ({ operations, addLog, onVideoSelect, onStatusUpdate }: 
                               {(op as any).compressionQuality.replace(/_/g, " ")}
                             </span>
                           )}
+                          {(op as any).inputFileSize != null && (
+                            <span className="px-1.5 py-0.5 bg-slate-50 border border-slate-200 text-slate-500 text-[9px] font-bold rounded">
+                              Input: {formatBytes((op as any).inputFileSize)}
+                            </span>
+                          )}
                         </div>
                       )}
                       {op.type === "transform" && (
                         <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {(op as any).compressionQuality && (
+                            <span className="px-1.5 py-0.5 bg-violet-50 border border-violet-100 text-violet-600 text-[9px] font-bold rounded">
+                              {(op as any).compressionQuality.replace(/_/g, " ")}
+                            </span>
+                          )}
                           {(op as any).videoTransformStrength != null && (
                             <span className="px-1.5 py-0.5 bg-violet-50 border border-violet-100 text-violet-600 text-[9px] font-bold rounded">
                               Strength {Number((op as any).videoTransformStrength).toFixed(2)}
@@ -369,6 +380,11 @@ const OperationsPanel = ({ operations, addLog, onVideoSelect, onStatusUpdate }: 
                           {op.maskVideoGcsUri && (
                             <span className="px-1.5 py-0.5 bg-violet-100 border border-violet-200 text-violet-700 text-[9px] font-bold rounded flex items-center gap-1">
                               Mask: {op.maskVideoGcsUri.split("/").pop()}
+                            </span>
+                          )}
+                          {(op as any).inputFileSize != null && (
+                            <span className="px-1.5 py-0.5 bg-slate-50 border border-slate-200 text-slate-500 text-[9px] font-bold rounded">
+                              Input: {formatBytes((op as any).inputFileSize)}
                             </span>
                           )}
                           {(op as any).prompt && (

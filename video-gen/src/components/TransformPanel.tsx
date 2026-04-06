@@ -14,11 +14,11 @@ import {
 } from "lucide-react";
 import { storage, db } from "@/lib/firebase";
 import { ref, getDownloadURL, uploadBytesResumable } from "firebase/storage";
-import { collection, getDocs, query, limit, where, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, getDocs, query, limit, where, addDoc, serverTimestamp, orderBy, startAfter, QueryDocumentSnapshot } from "firebase/firestore";
 import { useConfig } from "@/context/ConfigContext";
 import { useProject } from "@/context/ProjectContext";
 import { getGcsUri } from "@/utils/gcs";
-import { formatBytes } from "@/utils/time";
+import { formatBytes, detectAspectRatioFromFile } from "@/utils/time";
 
 interface TransformPanelProps {
   onGenerate?: (payload: any, isLongRunning: boolean) => void;
@@ -32,8 +32,12 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
   const imageFileInputRef = useRef<HTMLInputElement>(null);
   const maskFileInputRef = useRef<HTMLInputElement>(null);
 
-  const [videos, setVideos] = useState<{ id: string; name: string; url: string; size?: number }[]>([]);
+  const PAGE_SIZE = 8;
+  const [videos, setVideos] = useState<{ id: string; name: string; url: string; size?: number; aspectRatio?: string }[]>([]);
   const [loadingAssets, setLoadingAssets] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const lastDocRef = useRef<QueryDocumentSnapshot | null>(null);
 
   const [selectedVideoUrl, setSelectedVideoUrl] = useState<string | null>(null);
   const [controlImageUrl, setControlImageUrl] = useState<string | null>(null);
@@ -43,6 +47,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
   const [strength, setStrength] = useState(0.88);
   const [steps, setSteps] = useState(20);
   const [stepsInput, setStepsInput] = useState("20");
+  const [compressionQuality, setCompressionQuality] = useState<"optimized" | "lossless">("optimized");
 
   const [isUploadingVideo, setIsUploadingVideo] = useState(false);
   const [videoUploadProgress, setVideoUploadProgress] = useState(0);
@@ -66,19 +71,44 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
   const fetchVideos = useCallback(async () => {
     if (!currentProjectId) { setVideos([]); setLoadingAssets(false); return; }
     setLoadingAssets(true);
+    lastDocRef.current = null;
     try {
       const snap = await getDocs(query(
         collection(db, "videos"),
         where("projectId", "==", currentProjectId),
-        limit(20)
+        orderBy("createdAt", "desc"),
+        limit(PAGE_SIZE)
       ));
-      setVideos(snap.docs.map(d => ({ id: d.id, name: d.data().name || "Untitled", url: d.data().url || "", size: d.data().size || undefined })).reverse());
+      lastDocRef.current = snap.docs[snap.docs.length - 1] ?? null;
+      setHasMore(snap.docs.length === PAGE_SIZE);
+      setVideos(snap.docs.map(d => ({ id: d.id, name: d.data().name || "Untitled", url: d.data().url || "", size: d.data().size || undefined, aspectRatio: d.data().aspectRatio || undefined })));
     } catch (e) {
       console.error("Error fetching videos", e);
     } finally {
       setLoadingAssets(false);
     }
   }, [currentProjectId]);
+
+  const loadMoreVideos = async () => {
+    if (!currentProjectId || !lastDocRef.current || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const snap = await getDocs(query(
+        collection(db, "videos"),
+        where("projectId", "==", currentProjectId),
+        orderBy("createdAt", "desc"),
+        startAfter(lastDocRef.current),
+        limit(PAGE_SIZE)
+      ));
+      lastDocRef.current = snap.docs[snap.docs.length - 1] ?? lastDocRef.current;
+      setHasMore(snap.docs.length === PAGE_SIZE);
+      setVideos(prev => [...prev, ...snap.docs.map(d => ({ id: d.id, name: d.data().name || "Untitled", url: d.data().url || "", size: d.data().size || undefined, aspectRatio: d.data().aspectRatio || undefined }))]);
+    } catch (e) {
+      console.error("Error loading more videos", e);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useEffect(() => { fetchVideos(); }, [fetchVideos]);
 
@@ -109,6 +139,8 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
     setVideoUploadProgress(0);
     setVideoUploadError(null);
 
+    const detectedRatio = await detectAspectRatioFromFile(file);
+
     const storageRef = ref(storage, `videos/${Date.now()}_${file.name}`);
     const task = uploadBytesResumable(storageRef, file);
 
@@ -120,6 +152,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
           const url = await getDownloadURL(task.snapshot.ref);
           await addDoc(collection(db, "videos"), {
             name: file.name, url, type: file.type, size: file.size,
+            aspectRatio: detectedRatio,
             projectId: currentProjectId, createdAt: serverTimestamp(),
           });
           setSelectedVideoUrl(url);
@@ -216,8 +249,10 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19).replace("T", "_");
       const outputUri = `gs://${config.gcsBucket}/${config.outputFolder}/video_${timestamp}`;
 
+      const selectedVideo = videos.find(v => v.url === selectedVideoUrl);
       const payload = {
         _model: "veo-experimental",
+        _inputFileSize: selectedVideo?.size ?? null,
         instances: [{
           prompt,
           video: { gcsUri: getGcsUri(selectedVideoUrl), mimeType: "video/mp4" },
@@ -225,6 +260,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
         }],
         parameters: {
           seed: 777,
+          compressionQuality,
           storageUri: outputUri,
           experiments: {
             modelName: "veo-exp-video-transform",
@@ -322,7 +358,8 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
                   <div
                     key={vid.id}
                     onClick={() => { setSelectedVideoUrl(vid.url); onVideoSelect?.(vid.url); }}
-                    className="relative aspect-video rounded-lg overflow-hidden border-2 border-slate-200 hover:border-slate-300 cursor-pointer transition-all group active:scale-95"
+                    className="relative rounded-lg overflow-hidden border-2 border-slate-200 hover:border-slate-300 cursor-pointer transition-all group active:scale-95"
+                    style={{ aspectRatio: vid.aspectRatio === "9:16" ? "9/16" : "16/9" }}
                   >
                     <video
                       src={vid.url + "#t=0.5"}
@@ -344,6 +381,16 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
                   </div>
                 ))}
               </div>
+            )}
+            {hasMore && (
+              <button
+                onClick={loadMoreVideos}
+                disabled={loadingMore}
+                className="w-full py-2 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-500 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                {loadingMore ? <Loader2 size={12} className="animate-spin" /> : null}
+                {loadingMore ? "Loading…" : "Load more"}
+              </button>
             )}
             <button
               onClick={() => videoFileInputRef.current?.click()}
@@ -556,6 +603,26 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
             onBlur={handleStepsBlur}
             className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 transition-all"
           />
+        </div>
+
+        {/* Compression Quality */}
+        <div className="space-y-2">
+          <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Compression Quality</p>
+          <div className="flex gap-2">
+            {(["optimized", "lossless"] as const).map(q => (
+              <button
+                key={q}
+                onClick={() => setCompressionQuality(q)}
+                className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
+                  compressionQuality === q
+                    ? "bg-violet-600 text-white border-violet-600 shadow-sm"
+                    : "bg-slate-50 text-slate-500 border-slate-200 hover:border-violet-300 hover:text-violet-600"
+                }`}
+              >
+                {q.charAt(0).toUpperCase() + q.slice(1)}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
