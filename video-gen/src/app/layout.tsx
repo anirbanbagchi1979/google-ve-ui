@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Google Video Generation - Firebase App",
-  description: "Next.js app with Firebase Google Authentication",
+  title: "Vertex Experimental Flow",
+  description: "Generate, upscale, and manage AI videos with Google's Veo models",
 };
 
 export default function RootLayout({
