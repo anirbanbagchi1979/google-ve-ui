@@ -11,6 +11,7 @@ import {
   where
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { gcsToFirebaseUrl } from "@/utils/gcs";
 import { useConfig } from "@/context/ConfigContext";
 import { useAuth } from "@/context/AuthContext";
 import { useProject } from "@/context/ProjectContext";
@@ -85,6 +86,22 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
                 completedAt: Timestamp.now(),
                 result: data.response
               });
+              // Save transform outputs to videos library so they can be upscaled.
+              // Upscale outputs are intentionally NOT saved here — already-upscaled
+              // videos must not appear as candidates for further upscaling.
+              if (op.type === "transform") {
+                const outputGcsUri = data.response?.videos?.[0]?.gcsUri;
+                if (outputGcsUri) {
+                  await addDoc(collection(db, "videos"), {
+                    name: `Transform output`,
+                    url: gcsToFirebaseUrl(outputGcsUri),
+                    type: "video/mp4",
+                    source: "transform_output",
+                    projectId: op.projectId,
+                    createdAt: Timestamp.now(),
+                  });
+                }
+              }
               addLog({ type: "FLOW", message: `Operation Complete: ${op.id}`, operationId: op.name });
             }
           }
@@ -122,10 +139,11 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
       maskVideoGcsUri: params.experiments?.videoTransformMaskGcsUri || null,
       videoTransformStrength: params.experiments?.videoTransformStrength ?? null,
       numDiffusionSteps: params.experiments?.numDiffusionSteps ?? null,
+      inputFileSize: (payload._inputFileSize as number | null) ?? null,
     };
 
     try {
-      const { _model: metaModel, ...apiPayload } = payload;
+      const { _model: metaModel, _inputFileSize: inputFileSize, ...apiPayload } = payload;
       const experimentModel = params.experiments?.modelName;
       const modelUsed = experimentModel === 'veo3p1_upscale'
         ? config.upscaleModel
