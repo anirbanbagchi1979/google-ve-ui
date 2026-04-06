@@ -20,6 +20,7 @@ import {
 import { PanelHeader } from "@/components/ui/PanelHeader";
 
 import { useConfig } from "@/context/ConfigContext";
+import { useAuth } from "@/context/AuthContext";
 import { formatBytes } from "@/utils/time";
 
 interface Operation {
@@ -71,10 +72,11 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
   const [checkResults, setCheckResults] = useState<Record<string, any>>({});
   const [outputSizes, setOutputSizes] = useState<Record<string, number>>({});
   const { config } = useConfig();
+  const { user } = useAuth();
 
   // Fetch output file sizes for completed operations
   useEffect(() => {
-    operations.forEach(op => {
+    operations.forEach(async op => {
       if (op.status !== "DONE" || outputSizes[op.id] !== undefined) return;
       const gcsUri = op.result?.videos?.[0]?.gcsUri || op.result?.video?.gcsUri;
       if (!gcsUri) return;
@@ -83,16 +85,17 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
       const bucket = withoutScheme.substring(0, slashIdx);
       const path = withoutScheme.substring(slashIdx + 1);
       const encodedPath = path.split("/").map(encodeURIComponent).join("%2F");
-      // Use metadata endpoint (no ?alt=media) — returns JSON with size field, supports CORS
       const url = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodedPath}`;
-      fetch(url)
-        .then(r => r.json())
-        .then(data => {
-          if (data.size) setOutputSizes(prev => ({ ...prev, [op.id]: parseInt(data.size, 10) }));
-        })
-        .catch(() => {});
+      try {
+        const token = user ? await user.getIdToken() : null;
+        const r = await fetch(url, {
+          headers: token ? { Authorization: `Firebase ${token}` } : {},
+        });
+        const data = await r.json();
+        if (data.size) setOutputSizes(prev => ({ ...prev, [op.id]: parseInt(data.size, 10) }));
+      } catch {}
     });
-  }, [operations]);
+  }, [operations, user]);
 
   // Filters
   const [filterType, setFilterType] = useState<string>("all");
