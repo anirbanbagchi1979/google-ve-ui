@@ -16,7 +16,7 @@ import { ref, listAll, getDownloadURL, uploadBytesResumable } from "firebase/sto
 import { collection, getDocs, query, limit, where, addDoc, serverTimestamp } from "firebase/firestore";
 import { useConfig } from "@/context/ConfigContext";
 import { useProject } from "@/context/ProjectContext";
-import { formatBytes } from "@/utils/time";
+import { formatBytes, detectAspectRatioFromFile } from "@/utils/time";
 
 interface UpscalePanelProps {
   onGenerate?: (payload: any, isLongRunning: boolean) => void;
@@ -43,7 +43,7 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Video library
-  const [videos, setVideos] = useState<{ id: string; name: string; url: string; size?: number }[]>([]);
+  const [videos, setVideos] = useState<{ id: string; name: string; url: string; size?: number; aspectRatio?: string }[]>([]);
   const [loadingAssets, setLoadingAssets] = useState(true);
 
   // Selection
@@ -97,7 +97,7 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
         where("projectId", "==", currentProjectId),
         limit(20)
       ));
-      const list = snap.docs.map(d => ({ id: d.id, name: d.data().name || "Untitled", url: d.data().url || "", size: d.data().size || undefined }));
+      const list = snap.docs.map(d => ({ id: d.id, name: d.data().name || "Untitled", url: d.data().url || "", size: d.data().size || undefined, aspectRatio: d.data().aspectRatio || undefined }));
       setVideos(list.reverse());
     } catch (e) {
       console.error("Error fetching videos", e);
@@ -117,6 +117,8 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
     setUploadProgress(0);
     setUploadError(null);
 
+    const detectedRatio = await detectAspectRatioFromFile(file);
+
     const storageRef = ref(storage, `videos/${Date.now()}_${file.name}`);
     const task = uploadBytesResumable(storageRef, file);
 
@@ -131,6 +133,7 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
             url: url,
             type: file.type,
             size: file.size,
+            aspectRatio: detectedRatio,
             projectId: currentProjectId,
             createdAt: serverTimestamp(),
           });
@@ -262,8 +265,9 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
                 <div
                   key={vid.id}
                   onClick={() => selectVideo(vid.url)}
-                  className={`relative aspect-video rounded-lg overflow-hidden border-2 cursor-pointer transition-all group active:scale-95
+                  className={`relative rounded-lg overflow-hidden border-2 cursor-pointer transition-all group active:scale-95
                     ${selectedUrl === vid.url ? "border-blue-500 ring-2 ring-blue-500/20" : "border-slate-200 hover:border-slate-300"}`}
+                  style={{ aspectRatio: vid.aspectRatio === "9:16" ? "9/16" : "16/9" }}
                 >
                   <video
                     src={vid.url + "#t=0.5"}

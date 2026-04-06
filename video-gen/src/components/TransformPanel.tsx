@@ -18,7 +18,7 @@ import { collection, getDocs, query, limit, where, addDoc, serverTimestamp } fro
 import { useConfig } from "@/context/ConfigContext";
 import { useProject } from "@/context/ProjectContext";
 import { getGcsUri } from "@/utils/gcs";
-import { formatBytes } from "@/utils/time";
+import { formatBytes, detectAspectRatioFromFile } from "@/utils/time";
 
 interface TransformPanelProps {
   onGenerate?: (payload: any, isLongRunning: boolean) => void;
@@ -32,7 +32,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
   const imageFileInputRef = useRef<HTMLInputElement>(null);
   const maskFileInputRef = useRef<HTMLInputElement>(null);
 
-  const [videos, setVideos] = useState<{ id: string; name: string; url: string; size?: number }[]>([]);
+  const [videos, setVideos] = useState<{ id: string; name: string; url: string; size?: number; aspectRatio?: string }[]>([]);
   const [loadingAssets, setLoadingAssets] = useState(true);
 
   const [selectedVideoUrl, setSelectedVideoUrl] = useState<string | null>(null);
@@ -72,7 +72,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
         where("projectId", "==", currentProjectId),
         limit(20)
       ));
-      setVideos(snap.docs.map(d => ({ id: d.id, name: d.data().name || "Untitled", url: d.data().url || "", size: d.data().size || undefined })).reverse());
+      setVideos(snap.docs.map(d => ({ id: d.id, name: d.data().name || "Untitled", url: d.data().url || "", size: d.data().size || undefined, aspectRatio: d.data().aspectRatio || undefined })).reverse());
     } catch (e) {
       console.error("Error fetching videos", e);
     } finally {
@@ -109,6 +109,8 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
     setVideoUploadProgress(0);
     setVideoUploadError(null);
 
+    const detectedRatio = await detectAspectRatioFromFile(file);
+
     const storageRef = ref(storage, `videos/${Date.now()}_${file.name}`);
     const task = uploadBytesResumable(storageRef, file);
 
@@ -120,6 +122,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
           const url = await getDownloadURL(task.snapshot.ref);
           await addDoc(collection(db, "videos"), {
             name: file.name, url, type: file.type, size: file.size,
+            aspectRatio: detectedRatio,
             projectId: currentProjectId, createdAt: serverTimestamp(),
           });
           setSelectedVideoUrl(url);
@@ -322,7 +325,8 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
                   <div
                     key={vid.id}
                     onClick={() => { setSelectedVideoUrl(vid.url); onVideoSelect?.(vid.url); }}
-                    className="relative aspect-video rounded-lg overflow-hidden border-2 border-slate-200 hover:border-slate-300 cursor-pointer transition-all group active:scale-95"
+                    className="relative rounded-lg overflow-hidden border-2 border-slate-200 hover:border-slate-300 cursor-pointer transition-all group active:scale-95"
+                    style={{ aspectRatio: vid.aspectRatio === "9:16" ? "9/16" : "16/9" }}
                   >
                     <video
                       src={vid.url + "#t=0.5"}

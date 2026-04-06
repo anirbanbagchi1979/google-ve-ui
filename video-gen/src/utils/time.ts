@@ -25,6 +25,24 @@ export const getDurationString = (op: Operation, now: number = Date.now()): stri
 };
 
 /**
+ * Detect the aspect ratio of a video File by loading its metadata.
+ * Returns "16:9" for landscape, "9:16" for portrait.
+ */
+export const detectAspectRatioFromFile = (file: File): Promise<"16:9" | "9:16"> =>
+  new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const vid = document.createElement("video");
+    vid.preload = "metadata";
+    vid.onloadedmetadata = () => {
+      resolve(vid.videoWidth >= vid.videoHeight ? "16:9" : "9:16");
+      URL.revokeObjectURL(url);
+      vid.src = "";
+    };
+    vid.onerror = () => { resolve("16:9"); URL.revokeObjectURL(url); };
+    vid.src = url;
+  });
+
+/**
  * Format bytes as a human-readable string (KB, MB, GB).
  */
 export const formatBytes = (bytes: number): string => {

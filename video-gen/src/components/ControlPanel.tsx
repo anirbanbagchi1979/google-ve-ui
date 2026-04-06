@@ -23,13 +23,14 @@ import { ref, listAll, getDownloadURL, uploadBytesResumable } from "firebase/sto
 import { collection, addDoc, serverTimestamp, query, getDocs, orderBy, limit, where } from "firebase/firestore";
 import { useConfig } from "@/context/ConfigContext";
 import { useProject } from "@/context/ProjectContext";
-import { formatBytes } from "@/utils/time";
+import { formatBytes, detectAspectRatioFromFile } from "@/utils/time";
 
 interface VideoAsset {
   id: string;
   name: string;
   url: string;
   size?: number;
+  aspectRatio?: string;
   createdAt: any;
 }
 
@@ -116,6 +117,7 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
           name: data.name || "Untitled",
           url: data.url || "",
           size: data.size || undefined,
+          aspectRatio: data.aspectRatio || undefined,
           createdAt: data.createdAt
         });
       });
@@ -162,19 +164,21 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
     setUploadSuccess(false);
     setUploadError(null);
 
+    const detectedRatio = await detectAspectRatioFromFile(file);
+
     try {
       const storageRef = ref(storage, `videos/${Date.now()}_${file.name}`);
       const uploadTask = uploadBytesResumable(storageRef, file);
 
-      uploadTask.on('state_changed', 
+      uploadTask.on('state_changed',
         (snapshot) => {
           const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
           setUploadProgress(progress);
-        }, 
+        },
         (error) => {
           setUploadError("Upload failed: " + error.message);
           setIsUploading(false);
-        }, 
+        },
         async () => {
           try {
             const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
@@ -183,6 +187,7 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
               url: downloadURL,
               type: file.type,
               size: file.size,
+              aspectRatio: detectedRatio,
               projectId: currentProjectId,
               createdAt: serverTimestamp(),
             });
@@ -430,9 +435,10 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
                       setSelectedAssetUrl(vid.url);
                       setSelectedAssetType("video");
                     }}
-                    className={`aspect-video rounded-lg overflow-hidden border-2 transition-all group relative cursor-pointer active:scale-95 flex items-center justify-center ${
+                    className={`rounded-lg overflow-hidden border-2 transition-all group relative cursor-pointer active:scale-95 flex items-center justify-center ${
                       selectedAssetUrl === vid.url ? "border-blue-500 ring-2 ring-blue-500/20" : "border-slate-200"
                     }`}
+                    style={{ aspectRatio: vid.aspectRatio === "9:16" ? "9/16" : "16/9" }}
                   >
                     <video 
                       src={vid.url + "#t=0.1"} 
