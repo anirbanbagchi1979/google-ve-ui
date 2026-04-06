@@ -406,14 +406,13 @@ const OperationsPanel = ({ operations, addLog, onVideoSelect, onStatusUpdate }: 
                             </div>
                           )}
                           {displayUri && (
-                            <div className="flex-1 min-w-0 flex items-start gap-1">
-                              <p className="text-[9px] font-mono text-slate-400 break-all leading-relaxed flex-1">{displayUri}</p>
+                            <div className="flex-1 min-w-0 flex items-center gap-1">
                               <button
                                 onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(displayUri); }}
-                                className="shrink-0 p-1 text-slate-300 hover:text-blue-500 transition-colors"
-                                title="Copy GCS URI"
+                                className="flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-semibold text-slate-400 hover:text-blue-500 border border-slate-200 rounded hover:border-blue-300 transition-colors"
+                                title={displayUri}
                               >
-                                <ExternalLink size={10} />
+                                <ExternalLink size={9} /> Copy GCS
                               </button>
                             </div>
                           )}
@@ -459,7 +458,13 @@ const OperationsPanel = ({ operations, addLog, onVideoSelect, onStatusUpdate }: 
                                     </div>
                                   )}
                                   {cUri && (
-                                    <p className="text-[9px] font-mono text-slate-400 break-all leading-relaxed flex-1">{cUri}</p>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(cUri); }}
+                                      className="flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-semibold text-slate-400 hover:text-blue-500 border border-slate-200 rounded hover:border-blue-300 transition-colors self-start"
+                                      title={cUri}
+                                    >
+                                      <ExternalLink size={9} /> Copy GCS
+                                    </button>
                                   )}
                                 </div>
                               );
@@ -473,21 +478,23 @@ const OperationsPanel = ({ operations, addLog, onVideoSelect, onStatusUpdate }: 
                         </div>
                       )}
 
-                      {/* Operation ID + check button */}
+                      {/* Operation ID + check button (check only for RUNNING) */}
                       <div className="flex items-center gap-1.5">
                         <span className="text-[9px] font-mono text-slate-300 truncate flex-1">{op.name.split("/").pop()}</span>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleStatusCheck(op); }}
-                          disabled={checkingIds.has(op.id)}
-                          className="p-1 text-slate-300 hover:text-blue-500 transition-colors disabled:opacity-40"
-                          title="Run Deep Status Check"
-                        >
-                          {checkingIds.has(op.id) ? (
-                            <Loader2 size={10} className="animate-spin" />
-                          ) : (
-                            <Search size={10} />
-                          )}
-                        </button>
+                        {op.status === "RUNNING" && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleStatusCheck(op); }}
+                            disabled={checkingIds.has(op.id)}
+                            className="p-1 text-slate-300 hover:text-blue-500 transition-colors disabled:opacity-40"
+                            title="Run Deep Status Check"
+                          >
+                            {checkingIds.has(op.id) ? (
+                              <Loader2 size={10} className="animate-spin" />
+                            ) : (
+                              <Search size={10} />
+                            )}
+                          </button>
+                        )}
                       </div>
 
                     </div>
