@@ -83,11 +83,12 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
       const bucket = withoutScheme.substring(0, slashIdx);
       const path = withoutScheme.substring(slashIdx + 1);
       const encodedPath = path.split("/").map(encodeURIComponent).join("%2F");
-      const url = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodedPath}?alt=media`;
-      fetch(url, { method: "HEAD" })
-        .then(r => {
-          const len = r.headers.get("content-length");
-          if (len) setOutputSizes(prev => ({ ...prev, [op.id]: parseInt(len, 10) }));
+      // Use metadata endpoint (no ?alt=media) — returns JSON with size field, supports CORS
+      const url = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodedPath}`;
+      fetch(url)
+        .then(r => r.json())
+        .then(data => {
+          if (data.size) setOutputSizes(prev => ({ ...prev, [op.id]: parseInt(data.size, 10) }));
         })
         .catch(() => {});
     });
