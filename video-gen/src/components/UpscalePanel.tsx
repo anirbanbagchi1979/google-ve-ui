@@ -93,7 +93,7 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
     lastDocRef.current = null;
     try {
       const snap = await getDocs(query(
-        collection(db, "videos"),
+        collection(db, "upscale_inputs"),
         where("projectId", "==", currentProjectId),
         orderBy("createdAt", "desc"),
         limit(PAGE_SIZE)
@@ -151,13 +151,12 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
       async () => {
         try {
           const url = await getDownloadURL(task.snapshot.ref);
-          await addDoc(collection(db, "videos"), {
+          await addDoc(collection(db, "upscale_inputs"), {
             name: file.name,
             url: url,
             type: file.type,
             size: file.size,
             aspectRatio: detectedRatio,
-            source: "upscale_input",
             projectId: currentProjectId,
             createdAt: serverTimestamp(),
           });

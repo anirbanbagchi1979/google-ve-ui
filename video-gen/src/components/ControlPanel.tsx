@@ -113,12 +113,10 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
       ));
       lastVideoDocRef.current = snap.docs[snap.docs.length - 1] ?? null;
       setHasMoreVideos(snap.docs.length === PAGE_SIZE);
-      setVideos(snap.docs
-        .filter(doc => doc.data().source !== "upscale_input")
-        .map(doc => {
-          const data = doc.data();
-          return { id: doc.id, name: data.name || "Untitled", url: data.url || "", size: data.size || undefined, aspectRatio: data.aspectRatio || undefined, createdAt: data.createdAt };
-        }));
+      setVideos(snap.docs.map(doc => {
+        const data = doc.data();
+        return { id: doc.id, name: data.name || "Untitled", url: data.url || "", size: data.size || undefined, aspectRatio: data.aspectRatio || undefined, createdAt: data.createdAt };
+      }));
     } catch (err) {
       console.error("Error fetching videos", err);
     }
@@ -137,12 +135,10 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
       ));
       lastVideoDocRef.current = snap.docs[snap.docs.length - 1] ?? lastVideoDocRef.current;
       setHasMoreVideos(snap.docs.length === PAGE_SIZE);
-      setVideos(prev => [...prev, ...snap.docs
-        .filter(doc => doc.data().source !== "upscale_input")
-        .map(doc => {
-          const data = doc.data();
-          return { id: doc.id, name: data.name || "Untitled", url: data.url || "", size: data.size || undefined, aspectRatio: data.aspectRatio || undefined, createdAt: data.createdAt };
-        })]);
+      setVideos(prev => [...prev, ...snap.docs.map(doc => {
+        const data = doc.data();
+        return { id: doc.id, name: data.name || "Untitled", url: data.url || "", size: data.size || undefined, aspectRatio: data.aspectRatio || undefined, createdAt: data.createdAt };
+      })]);
     } catch (err) {
       console.error("Error loading more videos", err);
     } finally {
