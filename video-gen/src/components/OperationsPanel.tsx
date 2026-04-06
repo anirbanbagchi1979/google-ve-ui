@@ -9,6 +9,7 @@ import {
   ExternalLink,
   Video,
   Search,
+  SlidersHorizontal,
   Filter,
   X,
   Sparkles,
@@ -65,6 +66,7 @@ const TYPE_ICON: Record<string, React.ReactNode> = {
 };
 
 const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog, onVideoSelect, onStatusUpdate }: OperationsPanelProps) => {
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [checkingIds, setCheckingIds] = useState<Set<string>>(new Set());
   const [checkResults, setCheckResults] = useState<Record<string, any>>({});
   const [outputSizes, setOutputSizes] = useState<Record<string, number>>({});
@@ -228,10 +230,26 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
         icon={<ListChecks size={13} />}
         title="Task Monitor"
         subtitle={`${operations.filter(op => op.status === "RUNNING").length} active · ${operations.length} total`}
+        actions={
+          <button
+            onClick={() => setFiltersOpen(v => !v)}
+            className={`relative p-1.5 rounded-lg transition-colors ${
+              filtersOpen ? "bg-blue-200 text-blue-700" : "text-blue-400 hover:bg-blue-100 hover:text-blue-600"
+            }`}
+            title="Toggle filters"
+          >
+            <SlidersHorizontal size={14} />
+            {activeFilterCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-blue-500 text-white text-[8px] font-black rounded-full flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+        }
       />
 
       {/* Filter Bar */}
-      {(
+      <div className={`overflow-hidden transition-all duration-200 ${filtersOpen ? "max-h-64" : "max-h-0"}`}>
         <div className="px-4 py-3 bg-white border-b border-slate-200 shrink-0 space-y-2.5">
           {/* Row 1: Type pills */}
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -321,7 +339,7 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
             {filteredOps.length} of {operations.length} tasks
           </p>
         </div>
-      )}
+      </div>
 
       {/* List */}
       {(
