@@ -27,7 +27,7 @@ const Sidebar = ({ activeView, onSelect, isAdmin }: SidebarProps) => {
   ];
 
   return (
-    <div className="w-16 flex flex-col items-center py-6 bg-white border-r border-slate-200 h-screen shrink-0 shadow-sm z-50">
+    <div className="w-16 flex flex-col items-center py-6 bg-white border-r border-slate-200 h-full shrink-0 shadow-sm z-50">
       <div className="flex-1 flex flex-col gap-8 items-center">
         {items.map((item) => (
           <button 
