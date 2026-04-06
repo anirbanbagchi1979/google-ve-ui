@@ -32,7 +32,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
   const imageFileInputRef = useRef<HTMLInputElement>(null);
   const maskFileInputRef = useRef<HTMLInputElement>(null);
 
-  const PAGE_SIZE = 8;
+  const PAGE_SIZE = 4;
   const [videos, setVideos] = useState<{ id: string; name: string; url: string; size?: number; aspectRatio?: string }[]>([]);
   const [loadingAssets, setLoadingAssets] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
