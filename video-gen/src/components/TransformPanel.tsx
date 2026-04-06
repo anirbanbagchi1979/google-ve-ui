@@ -4,6 +4,7 @@ import React, { useRef, useState, useCallback, useEffect } from "react";
 import {
   Upload,
   Wand2,
+  Clapperboard,
   Loader2,
   CheckCircle,
   AlertCircle,
@@ -244,7 +245,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
 
   return (
     <div className="flex flex-col h-full bg-white overflow-hidden">
-      <PanelHeader icon={<Wand2 size={13} />} title="Video Transform" subtitle="Select a video, set controls, and transform" />
+      <PanelHeader icon={<Clapperboard size={13} />} title="Video Transform" subtitle="Select a video, set controls, and transform" />
 
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
 
@@ -564,7 +565,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
           {submitting ? (
             <><Loader2 size={16} className="animate-spin" /> Submitting…</>
           ) : (
-            <><Wand2 size={16} /> Transform Video</>
+            <><Clapperboard size={16} /> Transform Video</>
           )}
         </button>
         {!selectedVideoUrl && (

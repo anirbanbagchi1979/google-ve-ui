@@ -5,6 +5,7 @@ import {
   Upload,
   Video as VideoIcon,
   Maximize2,
+  Sparkles,
   Loader2,
   CheckCircle,
   AlertCircle,
@@ -163,7 +164,7 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
 
   return (
     <div className="flex flex-col h-full bg-white overflow-hidden">
-      <PanelHeader icon={<Maximize2 size={13} />} title="4K Upscale" subtitle="Upload or select a video, then submit to upscale" />
+      <PanelHeader icon={<Sparkles size={13} />} title="4K Upscale" subtitle="Upload or select a video, then submit to upscale" />
 
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
 
