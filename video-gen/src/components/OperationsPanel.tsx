@@ -55,7 +55,29 @@ const OperationsPanel = ({ operations, addLog, onVideoSelect, onStatusUpdate }: 
   const [isExpanded, setIsExpanded] = useState(true);
   const [checkingIds, setCheckingIds] = useState<Set<string>>(new Set());
   const [checkResults, setCheckResults] = useState<Record<string, any>>({});
+  const [outputSizes, setOutputSizes] = useState<Record<string, number>>({});
   const { config } = useConfig();
+
+  // Fetch output file sizes for completed operations
+  useEffect(() => {
+    operations.forEach(op => {
+      if (op.status !== "DONE" || outputSizes[op.id] !== undefined) return;
+      const gcsUri = op.result?.videos?.[0]?.gcsUri || op.result?.video?.gcsUri;
+      if (!gcsUri) return;
+      const withoutScheme = gcsUri.replace("gs://", "");
+      const slashIdx = withoutScheme.indexOf("/");
+      const bucket = withoutScheme.substring(0, slashIdx);
+      const path = withoutScheme.substring(slashIdx + 1);
+      const encodedPath = path.split("/").map(encodeURIComponent).join("%2F");
+      const url = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodedPath}?alt=media`;
+      fetch(url, { method: "HEAD" })
+        .then(r => {
+          const len = r.headers.get("content-length");
+          if (len) setOutputSizes(prev => ({ ...prev, [op.id]: parseInt(len, 10) }));
+        })
+        .catch(() => {});
+    });
+  }, [operations]);
 
   // Filters
   const [filterType, setFilterType] = useState<string>("all");
@@ -400,6 +422,12 @@ const OperationsPanel = ({ operations, addLog, onVideoSelect, onStatusUpdate }: 
                                 muted
                                 playsInline
                               />
+                              {/* Output file size badge */}
+                              {outputSizes[op.id] && (
+                                <div className="absolute top-1 right-1 px-1.5 py-0.5 bg-black/60 text-white text-[9px] font-bold rounded pointer-events-none">
+                                  {formatBytes(outputSizes[op.id])}
+                                </div>
+                              )}
                               {/* Always-visible compare pill */}
                               <div className="absolute bottom-0 inset-x-0 flex items-center justify-center py-1 bg-gradient-to-t from-black/70 to-transparent">
                                 <span className="flex items-center gap-1 text-[9px] font-bold text-white/90 tracking-wide">
