@@ -113,7 +113,7 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
     setLoadingMore(true);
     try {
       const snap = await getDocs(query(
-        collection(db, "videos"),
+        collection(db, "upscale_inputs"),
         where("projectId", "==", currentProjectId),
         orderBy("createdAt", "desc"),
         startAfter(lastDocRef.current),
