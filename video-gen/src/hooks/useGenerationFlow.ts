@@ -19,6 +19,7 @@ import { gcsToFirebaseUrl } from "@/utils/gcs";
 import { useConfig } from "@/context/ConfigContext";
 import { useAuth } from "@/context/AuthContext";
 import { useProject } from "@/context/ProjectContext";
+import { proxyFetch } from "@/lib/proxyFetch";
 
 const OPS_PAGE_SIZE = 10;
 
@@ -29,7 +30,7 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
   const lastOpDocRef = useRef<QueryDocumentSnapshot | null>(null);
   const [logs, setLogs] = useState<any[]>([]);
   const { config } = useConfig();
-  const { user } = useAuth();
+  const { user, getIdToken } = useAuth();
   const { currentProjectId } = useProject();
 
   const addLog = (log: any) => {
@@ -93,11 +94,7 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
           const modelName = op.modelUsed || (op.type === "upscale" ? config.upscaleModel : config.videoGenModel);
           const endpoint = `https://${config.location}-aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${config.location}/publishers/google/models/${modelName}:fetchPredictOperation`;
 
-          const response = await fetch("/api/proxy", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ endpoint, payload: { operationName: op.name } })
-          });
+          const response = await proxyFetch(getIdToken, { endpoint, payload: { operationName: op.name } });
           const data = await response.json();
 
           if (data.done) {
@@ -180,11 +177,7 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
         : metaModel || experimentModel || config.videoGenModel;
       const endpoint = `https://${config.location}-aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${config.location}/publishers/google/models/${modelUsed}${isLongRunning ? ':predictLongRunning' : ':predict'}`;
 
-      const response = await fetch("/api/proxy", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ endpoint, payload: apiPayload })
-      });
+      const response = await proxyFetch(getIdToken, { endpoint, payload: apiPayload });
 
       const data = await response.json();
 

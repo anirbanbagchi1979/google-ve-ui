@@ -11,6 +11,7 @@ interface AuthContextType {
   accessToken: string | null;
   loading: boolean;
   setToken: (token: string | null) => void;
+  getIdToken: () => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -18,6 +19,7 @@ const AuthContext = createContext<AuthContextType>({
   accessToken: null,
   loading: true,
   setToken: () => {},
+  getIdToken: async () => null,
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -40,11 +42,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  // Returns a fresh Firebase ID token — auto-refreshes if expired
+  const getIdToken = async (): Promise<string | null> => {
+    if (!user) return null;
+    try {
+      return await user.getIdToken();
+    } catch {
+      return null;
+    }
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthUIStateChange(async (user) => {
       setUser(user);
       setLoading(false);
-      
+
       if (user) {
         try {
           await setDoc(doc(db, "users", user.uid), {
@@ -63,7 +75,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, accessToken, loading, setToken }}>
+    <AuthContext.Provider value={{ user, accessToken, loading, setToken, getIdToken }}>
       {children}
     </AuthContext.Provider>
   );
