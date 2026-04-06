@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   ListChecks,
   Loader2,
@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { PanelHeader } from "@/components/ui/PanelHeader";
 
+import { storage } from "@/lib/firebase";
+import { ref, getDownloadURL } from "firebase/storage";
 import { useConfig } from "@/context/ConfigContext";
 import { useAuth } from "@/context/AuthContext";
 import { formatBytes } from "@/utils/time";
@@ -71,6 +73,8 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
   const [checkingIds, setCheckingIds] = useState<Set<string>>(new Set());
   const [checkResults, setCheckResults] = useState<Record<string, any>>({});
   const [outputSizes, setOutputSizes] = useState<Record<string, number>>({});
+  const [downloadUrls, setDownloadUrls] = useState<Record<string, string>>({});
+  const resolvedUris = useRef<Set<string>>(new Set());
   const { config } = useConfig();
   const { user } = useAuth();
 
@@ -96,6 +100,32 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
       } catch {}
     });
   }, [operations, user]);
+
+  // Resolve GCS URIs → token-bearing download URLs (needed for <video> playback on private bucket)
+  useEffect(() => {
+    const allUris: string[] = [
+      ...operations.flatMap((op) => [
+        op.result?.videos?.[0]?.gcsUri,
+        op.result?.video?.gcsUri,
+        op.originalGcsUri,
+        (op as any).inputGcsUri,
+        op.payload?.instances?.[0]?.video?.gcsUri,
+      ]),
+      ...Object.values(checkResults).flatMap((r: any) => [
+        r?.response?.videos?.[0]?.gcsUri,
+      ]),
+    ].filter((u): u is string => !!u && !resolvedUris.current.has(u));
+
+    allUris.forEach(async (uri) => {
+      resolvedUris.current.add(uri); // mark before fetch to prevent duplicate requests
+      try {
+        const url = await getDownloadURL(ref(storage, uri));
+        setDownloadUrls(prev => ({ ...prev, [uri]: url }));
+      } catch {
+        resolvedUris.current.delete(uri); // allow retry on failure
+      }
+    });
+  }, [operations, checkResults]);
 
   // Filters
   const [filterType, setFilterType] = useState<string>("all");
@@ -135,16 +165,6 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
     return op.result?.videos?.[0]?.gcsUri || op.result?.video?.gcsUri || null;
   };
 
-  // Convert gs://bucket/path to Firebase Storage download URL
-  const gcsToFirebaseUrl = (gcsUri: string): string => {
-    // gs://bucket-name/path/to/file.mp4
-    const withoutScheme = gcsUri.replace("gs://", "");
-    const slashIdx = withoutScheme.indexOf("/");
-    const bucket = withoutScheme.substring(0, slashIdx);
-    const path = withoutScheme.substring(slashIdx + 1);
-    const encodedPath = path.split("/").map(encodeURIComponent).join("%2F");
-    return `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodedPath}?alt=media`;
-  };
 
   const handleStatusCheck = async (op: Operation) => {
     setCheckingIds(prev => new Set(prev).add(op.id));
@@ -361,7 +381,7 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
                 const gcsUri = getOutputGcsUri(op);
                 const fallbackUri = op.payload?.parameters?.storageUri;
                 const displayUri = gcsUri || fallbackUri || null;
-                const firebaseUrl = gcsUri ? gcsToFirebaseUrl(gcsUri) : null;
+                const firebaseUrl = gcsUri ? (downloadUrls[gcsUri] ?? null) : null;
                 const duration = getDurationString(op);
                 const createdAtDate = op.createdAt?.toDate?.()?.toLocaleString?.() ?? null;
 
@@ -439,7 +459,7 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
                                 const showSplit = (op.type === "upscale" || op.type === "transform") && !!origGcs;
                                 const left = op.type === "transform" ? "Input Video" : "Original Video";
                                 const right = op.type === "transform" ? "Transformed Output" : "4K Upscaled Output";
-                                onVideoSelect?.(firebaseUrl, showSplit ? gcsToFirebaseUrl(origGcs!) : undefined, left, right);
+                                onVideoSelect?.(firebaseUrl, showSplit ? (downloadUrls[origGcs!] ?? undefined) : undefined, left, right);
                               }}
                             >
                               <video
@@ -498,7 +518,7 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
                               </div>
                             ) : (() => {
                               const cUri = checkResults[op.id].response?.videos?.[0]?.gcsUri;
-                              const cUrl = cUri ? gcsToFirebaseUrl(cUri) : null;
+                              const cUrl = cUri ? (downloadUrls[cUri] ?? null) : null;
                               return (
                                 <div className="flex gap-2 items-start">
                                   {cUrl && (
@@ -509,7 +529,7 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
                                         const showSplit = (op.type === "upscale" || op.type === "transform") && !!origGcs;
                                         const left = op.type === "transform" ? "Input Video" : "Original Video";
                                         const right = op.type === "transform" ? "Transformed Output" : "4K Upscaled Output";
-                                        onVideoSelect?.(cUrl, showSplit ? gcsToFirebaseUrl(origGcs!) : undefined, left, right);
+                                        onVideoSelect?.(cUrl, showSplit ? (downloadUrls[origGcs!] ?? undefined) : undefined, left, right);
                                       }}
                                     >
                                       <video src={cUrl + "#t=0.5"} className="w-full h-full object-contain" preload="metadata" muted playsInline />
