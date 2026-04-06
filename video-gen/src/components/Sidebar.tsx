@@ -53,6 +53,8 @@ const Sidebar = ({ activeView, onSelect, isAdmin }: SidebarProps) => {
         ))}
       </div>
       
+      <div className="w-8 border-t border-slate-200 my-2 shrink-0" />
+
       <button
         onClick={() => onSelect("admin")}
         className={`flex flex-col items-center gap-1.5 transition-all group mt-auto ${
