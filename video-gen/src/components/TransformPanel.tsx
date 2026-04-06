@@ -18,7 +18,7 @@ import { collection, getDocs, query, limit, where, addDoc, serverTimestamp, orde
 import { useConfig } from "@/context/ConfigContext";
 import { useProject } from "@/context/ProjectContext";
 import { getGcsUri } from "@/utils/gcs";
-import { formatBytes, detectAspectRatioFromFile } from "@/utils/time";
+import { formatBytes, detectAspectRatioFromFile, validateVideoConstraints } from "@/utils/time";
 
 interface TransformPanelProps {
   onGenerate?: (payload: any, isLongRunning: boolean) => void;
@@ -134,6 +134,9 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("video/")) { setVideoUploadError("Please select a valid video file."); return; }
+
+    const validationError = await validateVideoConstraints(file);
+    if (validationError) { setVideoUploadError(validationError); return; }
 
     setIsUploadingVideo(true);
     setVideoUploadProgress(0);

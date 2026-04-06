@@ -16,7 +16,7 @@ import { ref, listAll, getDownloadURL, uploadBytesResumable } from "firebase/sto
 import { collection, getDocs, query, limit, where, addDoc, serverTimestamp, orderBy, startAfter, QueryDocumentSnapshot } from "firebase/firestore";
 import { useConfig } from "@/context/ConfigContext";
 import { useProject } from "@/context/ProjectContext";
-import { formatBytes, detectAspectRatioFromFile } from "@/utils/time";
+import { formatBytes, detectAspectRatioFromFile, validateVideoConstraints } from "@/utils/time";
 
 interface UpscalePanelProps {
   onGenerate?: (payload: any, isLongRunning: boolean) => void;
@@ -137,6 +137,9 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("video/")) { setUploadError("Please select a valid video file."); return; }
+
+    const validationError = await validateVideoConstraints(file);
+    if (validationError) { setUploadError(validationError); return; }
 
     setIsUploading(true);
     setUploadProgress(0);

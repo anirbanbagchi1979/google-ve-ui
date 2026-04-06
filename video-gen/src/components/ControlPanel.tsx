@@ -23,7 +23,7 @@ import { ref, listAll, getDownloadURL, uploadBytesResumable } from "firebase/sto
 import { collection, addDoc, serverTimestamp, query, getDocs, orderBy, limit, where, startAfter, QueryDocumentSnapshot } from "firebase/firestore";
 import { useConfig } from "@/context/ConfigContext";
 import { useProject } from "@/context/ProjectContext";
-import { formatBytes, detectAspectRatioFromFile } from "@/utils/time";
+import { formatBytes, detectAspectRatioFromFile, validateVideoConstraints } from "@/utils/time";
 
 interface VideoAsset {
   id: string;
@@ -177,6 +177,9 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
       setUploadError("Please select a valid video file.");
       return;
     }
+
+    const validationError = await validateVideoConstraints(file);
+    if (validationError) { setUploadError(validationError); return; }
 
     setIsUploading(true);
     setUploadProgress(0);

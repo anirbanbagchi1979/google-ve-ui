@@ -52,6 +52,30 @@ export const detectAspectRatioFromFile = (file: File): Promise<"16:9" | "9:16"> 
   });
 
 /**
+ * Validate that a video file meets the API constraints:
+ * ≤ 192 frames at 24fps (= max 8 seconds).
+ * Returns null if valid, or an error message string if invalid.
+ */
+export const validateVideoConstraints = (file: File): Promise<string | null> =>
+  new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const vid = document.createElement("video");
+    vid.preload = "metadata";
+    vid.onloadedmetadata = () => {
+      URL.revokeObjectURL(url);
+      vid.src = "";
+      const MAX_DURATION = 192 / 24; // 8 seconds
+      if (vid.duration > MAX_DURATION) {
+        resolve(`Video is ${vid.duration.toFixed(1)}s — max is 8s (192 frames at 24fps).`);
+      } else {
+        resolve(null);
+      }
+    };
+    vid.onerror = () => { URL.revokeObjectURL(url); resolve("Could not read video metadata."); };
+    vid.src = url;
+  });
+
+/**
  * Format seconds as MM:SS string.
  */
 export const formatTime = (time: number): string => {
