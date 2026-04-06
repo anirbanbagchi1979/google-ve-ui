@@ -18,7 +18,7 @@ interface SidebarProps {
 
 const Sidebar = ({ activeView, onSelect, isAdmin }: SidebarProps) => {
   const items = [
-    { id: "upscale", icon: <Maximize2 size={20} />, label: "4K" },
+    { id: "upscale", icon: <Maximize2 size={20} />, label: "4K Upscale" },
     { id: "transform", icon: <Wand2 size={20} />, label: "Transform" },
     { id: "perf", icon: <Drama size={20} />, label: "Performance" },
     { id: "tasks", icon: <History size={20} />, label: "Tasks" },
@@ -30,53 +30,47 @@ const Sidebar = ({ activeView, onSelect, isAdmin }: SidebarProps) => {
   ];
 
   return (
-    <div className="w-16 flex flex-col items-center py-6 bg-white border-r border-slate-200 h-full shrink-0 shadow-sm z-50">
-      <div className="flex-1 flex flex-col gap-8 items-center">
+    <div className="w-16 flex flex-col items-center py-6 bg-white border-r border-slate-200 h-full shrink-0 shadow-sm z-50 overflow-hidden">
+      <div className="flex-1 flex flex-col gap-2 items-center">
         {items.map((item) => (
-          <button 
+          <button
             key={item.id}
+            title={item.label}
             onClick={() => onSelect(item.id)}
-            className={`flex flex-col items-center gap-1.5 transition-all group ${
+            className={`flex flex-col items-center transition-all group ${
               activeView === item.id ? "text-blue-600" : "text-slate-400 hover:text-slate-600"
             }`}
           >
-            <div className={`p-2.5 rounded-xl transition-all duration-300 ${
-              activeView === item.id 
-              ? "bg-blue-50 text-blue-600 shadow-sm ring-1 ring-blue-100" 
-              : "bg-transparent group-hover:bg-slate-50"
+            <div className={`p-2.5 rounded-xl transition-all duration-200 ${
+              activeView === item.id
+                ? "bg-blue-50 text-blue-600 shadow-sm ring-1 ring-blue-100"
+                : "bg-transparent group-hover:bg-slate-50"
             }`}>
               {item.icon}
             </div>
-            <span className={`text-[9px] font-bold uppercase tracking-widest ${
-              activeView === item.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-            }`}>
-              {item.label}
-            </span>
           </button>
         ))}
       </div>
-      
-      <div className="w-8 border-t border-slate-200 my-2 shrink-0" />
 
-      <div className="flex flex-col gap-4 items-center pb-4">
+      <div className="w-8 border-t border-slate-200 my-3 shrink-0" />
+
+      <div className="flex flex-col gap-2 items-center pb-4">
         {bottomItems.map((item) => (
           <button
             key={item.id}
+            title={item.label}
             onClick={() => onSelect(item.id)}
-            className={`flex flex-col items-center gap-1.5 transition-all group ${
+            className={`flex flex-col items-center transition-all group ${
               activeView === item.id ? "text-slate-800" : "text-slate-400 hover:text-slate-600"
             }`}
           >
-            <div className={`p-2.5 rounded-xl transition-all duration-300 ${
+            <div className={`p-2.5 rounded-xl transition-all duration-200 ${
               activeView === item.id
                 ? "bg-slate-100 text-slate-800 shadow-sm ring-1 ring-slate-200"
                 : "bg-transparent group-hover:bg-slate-50"
             }`}>
               {item.icon}
             </div>
-            <span className={`text-[9px] font-bold uppercase tracking-widest ${
-              activeView === item.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-            }`}>{item.label}</span>
           </button>
         ))}
       </div>
