@@ -11,7 +11,6 @@ import {
   ChevronUp,
   Video,
   Search,
-  AlertCircle,
   Filter,
   X
 } from "lucide-react";
@@ -309,276 +308,192 @@ const OperationsPanel = ({ operations, addLog, onVideoSelect, onStatusUpdate }: 
               </div>
             </div>
           ) : (
-            <div className="p-3 space-y-3">
-              {filteredOps.map((op) => (
-              <div 
-                key={op.id}
-                className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all group"
-              >
-                {/* Status Bar */}
-                <div className={`h-1.5 w-full ${
-                  op.status === "RUNNING" ? "bg-blue-400 animate-pulse" : 
-                  op.status === "DONE" ? "bg-emerald-400" : "bg-red-400"
-                }`} />
+            <div className="p-3 space-y-2">
+              {filteredOps.map((op) => {
+                const gcsUri = getOutputGcsUri(op);
+                const fallbackUri = op.payload?.parameters?.storageUri;
+                const displayUri = gcsUri || fallbackUri || null;
+                const firebaseUrl = gcsUri ? gcsToFirebaseUrl(gcsUri) : null;
+                const duration = getDurationString(op);
+                const createdAtDate = op.createdAt?.toDate?.()?.toLocaleString?.() ?? null;
 
-                <div className="p-4 space-y-3">
-                  {/* Metadata Row */}
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1 pr-4 min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                        <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[9px] font-black uppercase rounded border border-slate-200">
-                          {op.type}
-                        </span>
-                        {op.userEmail && (
-                          <span className="text-[10px] text-slate-400 truncate max-w-[150px] italic">
-                            via {op.userEmail}
+                const borderColor =
+                  op.status === "RUNNING" ? "border-l-blue-400" :
+                  op.status === "DONE"    ? "border-l-emerald-400" :
+                                           "border-l-red-400";
+
+                const chipBase = "px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[9px] font-semibold rounded border border-slate-200";
+                const chipBlue = "px-1.5 py-0.5 bg-blue-50 text-blue-600 border-blue-100 text-[9px] font-semibold rounded border";
+
+                return (
+                  <div
+                    key={op.id}
+                    className={`bg-white border border-slate-200 border-l-4 ${borderColor} rounded-xl overflow-hidden`}
+                  >
+                    <div className="p-3 space-y-2">
+
+                      {/* Header row */}
+                      <div className="flex items-center gap-2">
+                        {op.status === "RUNNING" ? (
+                          <Loader2 size={12} className="text-blue-400 animate-spin shrink-0" />
+                        ) : op.status === "DONE" ? (
+                          <CheckCircle2 size={12} className="text-emerald-400 shrink-0" />
+                        ) : (
+                          <XCircle size={12} className="text-red-400 shrink-0" />
+                        )}
+                        <span className="text-[12px] font-semibold text-slate-700 capitalize">{op.type}</span>
+                        <div className="flex-1" />
+                        {duration && (
+                          <span
+                            className="text-[10px] text-slate-400 font-mono"
+                            title={createdAtDate ?? undefined}
+                          >
+                            {duration}
                           </span>
                         )}
-                        <span className="text-[10px] text-slate-500 font-bold bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
-                          {op.status === "RUNNING" ? "⏳" : "⏱️"} {getDurationString(op)}
-                        </span>
+                        {op.userEmail && (
+                          <span className="text-[10px] text-slate-400 italic truncate max-w-[100px]">
+                            {op.userEmail}
+                          </span>
+                        )}
                       </div>
-                      <h4 className="text-[13px] font-bold text-slate-800 truncate">
-                        {op.type === "upscale" ? "4K Video Upscale" : op.type === "transform" ? "Video Transform" : "Vertex AI Generation"}
-                      </h4>
-                      {op.type === "upscale" && (
-                        <div className="flex flex-wrap gap-1.5 mt-1.5">
-                          {(op as any).resolution && (
-                            <span className="px-1.5 py-0.5 bg-blue-50 border border-blue-100 text-blue-600 text-[9px] font-bold rounded uppercase">
-                              {(op as any).resolution}
-                            </span>
-                          )}
-                          {(op as any).compressionQuality && (
-                            <span className="px-1.5 py-0.5 bg-blue-50 border border-blue-100 text-blue-600 text-[9px] font-bold rounded">
-                              {(op as any).compressionQuality.replace(/_/g, " ")}
-                            </span>
-                          )}
-                          {(op as any).inputFileSize != null && (
-                            <span className="px-1.5 py-0.5 bg-slate-50 border border-slate-200 text-slate-500 text-[9px] font-bold rounded">
-                              Input: {formatBytes((op as any).inputFileSize)}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      {op.type === "transform" && (
-                        <div className="flex flex-wrap gap-1.5 mt-1.5">
-                          {(op as any).compressionQuality && (
-                            <span className="px-1.5 py-0.5 bg-violet-50 border border-violet-100 text-violet-600 text-[9px] font-bold rounded">
-                              {(op as any).compressionQuality.replace(/_/g, " ")}
-                            </span>
-                          )}
-                          {(op as any).videoTransformStrength != null && (
-                            <span className="px-1.5 py-0.5 bg-violet-50 border border-violet-100 text-violet-600 text-[9px] font-bold rounded">
-                              Strength {Number((op as any).videoTransformStrength).toFixed(2)}
-                            </span>
-                          )}
-                          {(op as any).numDiffusionSteps != null && (
-                            <span className="px-1.5 py-0.5 bg-violet-50 border border-violet-100 text-violet-600 text-[9px] font-bold rounded">
-                              {(op as any).numDiffusionSteps} Steps
-                            </span>
-                          )}
-                          {op.maskVideoGcsUri && (
-                            <span className="px-1.5 py-0.5 bg-violet-100 border border-violet-200 text-violet-700 text-[9px] font-bold rounded flex items-center gap-1">
-                              Mask: {op.maskVideoGcsUri.split("/").pop()}
-                            </span>
-                          )}
-                          {(op as any).inputFileSize != null && (
-                            <span className="px-1.5 py-0.5 bg-slate-50 border border-slate-200 text-slate-500 text-[9px] font-bold rounded">
-                              Input: {formatBytes((op as any).inputFileSize)}
-                            </span>
-                          )}
-                          {(op as any).prompt && (
-                            <p className="w-full text-[10px] text-slate-500 italic truncate mt-0.5">
-                              "{(op as any).prompt}"
-                            </p>
-                          )}
-                        </div>
-                      )}
-                      <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded border border-slate-100 flex-wrap overflow-hidden">
-                         <span className="text-[9px] font-mono text-slate-400 shrink-0">OP:</span>
-                         <span className="text-[9px] font-mono text-slate-600 truncate">{op.name.split("/").pop()}</span>
-                         <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleStatusCheck(op);
-                          }}
-                          disabled={checkingIds.has(op.id)}
-                          className="ml-auto p-1.5 bg-blue-500/10 text-blue-500 rounded hover:bg-blue-500 hover:text-white transition-all disabled:opacity-50"
-                          title="Run Deep Status Check"
-                         >
-                            {checkingIds.has(op.id) ? (
-                              <Loader2 size={10} className="animate-spin" />
-                            ) : (
-                              <Search size={10} />
-                            )}
-                         </button>
-                      </div>
-                    </div>
 
-                    {/* Action Area */}
-                    <div className="shrink-0 flex flex-col items-end gap-2">
-                       {op.status === "DONE" ? (
-                         <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-100">
-                            <CheckCircle2 size={12} />
-                            <span className="text-[10px] font-bold uppercase tracking-widest">Completed</span>
-                         </div>
-                       ) : op.status === "ERROR" ? (
-                         <div className="flex items-center gap-1.5 px-2 py-1 bg-red-50 text-red-600 rounded-lg border border-red-100">
-                            <XCircle size={12} />
-                            <span className="text-[10px] font-bold uppercase tracking-widest">Failed</span>
-                         </div>
-                       ) : (
-                         <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-50 text-blue-600 rounded-lg border border-blue-100">
-                            <Loader2 size={12} className="animate-spin" />
-                            <span className="text-[10px] font-bold uppercase tracking-widest animate-pulse">Running</span>
-                         </div>
-                       )}
-                    </div>
-                  </div>
+                      {/* Param chips */}
+                      {(() => {
+                        const chips: React.ReactNode[] = [];
+                        if ((op as any).resolution)
+                          chips.push(<span key="res" className={chipBlue}>{(op as any).resolution}</span>);
+                        if ((op as any).compressionQuality)
+                          chips.push(<span key="cq" className={chipBlue}>{(op as any).compressionQuality.replace(/_/g, " ")}</span>);
+                        if ((op as any).videoTransformStrength != null)
+                          chips.push(<span key="str" className={chipBlue}>strength {Number((op as any).videoTransformStrength).toFixed(2)}</span>);
+                        if ((op as any).numDiffusionSteps != null)
+                          chips.push(<span key="steps" className={chipBlue}>{(op as any).numDiffusionSteps} steps</span>);
+                        if ((op as any).inputFileSize != null)
+                          chips.push(<span key="ifs" className={chipBase}>{formatBytes((op as any).inputFileSize)}</span>);
+                        if ((op as any).prompt)
+                          chips.push(<span key="prompt" className={`${chipBase} italic truncate w-full`}>"{(op as any).prompt}"</span>);
+                        return chips.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">{chips}</div>
+                        ) : null;
+                      })()}
 
-                  {/* Output Location / Error Area */}
-                  <div className="pt-2 border-t border-slate-100">
-                    {op.status === "ERROR" ? (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-red-500">
-                          <AlertCircle size={14} />
-                          <span className="text-[10px] font-bold uppercase tracking-widest">Operation Error</span>
-                        </div>
-                        <div className="bg-red-50 border border-red-100 rounded-lg p-3 space-y-2 text-xs">
-                          <div className="flex justify-between items-center text-[10px] text-red-400 font-bold uppercase">
-                            <span>Diagnostic Message</span>
-                            <span>Code: {op.error?.code || '???'}</span>
-                          </div>
-                          <p className="text-red-700 leading-relaxed font-medium break-words">
-                            {op.error?.message || "Internal processing error occurred."}
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        {(() => {
-                          const gcsUri = getOutputGcsUri(op);
-                          const fallbackUri = op.payload?.parameters?.storageUri;
-                          const displayUri = gcsUri || fallbackUri || null;
-                          const firebaseUrl = gcsUri ? gcsToFirebaseUrl(gcsUri) : null;
-
-                          return (
-                            <div className="space-y-2">
-                              {/* Thumbnail for completed jobs — click to preview */}
-                              {op.status === "DONE" && firebaseUrl && (
-                                <div
-                                  className="relative w-48 aspect-video rounded-lg overflow-hidden border border-slate-200 bg-black cursor-pointer group/thumb"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const origGcs = op.originalGcsUri || (op as any).inputGcsUri || op.payload?.instances?.[0]?.video?.gcsUri;
-                                    const showSplit = (op.type === "upscale" || op.type === "transform") && !!origGcs;
-                                    const left = op.type === "transform" ? "Input Video" : "Original Video";
-                                    const right = op.type === "transform" ? "Transformed Output" : "4K Upscaled Output";
-                                    onVideoSelect?.(firebaseUrl, showSplit ? gcsToFirebaseUrl(origGcs!) : undefined, left, right);
-                                  }}
-                                >
-                                  <video
-                                    src={firebaseUrl + "#t=0.5"}
-                                    className="w-full h-full object-cover"
-                                    preload="metadata"
-                                    muted
-                                    playsInline
-                                  />
-                                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity">
-                                    <div className="p-2 bg-white/20 backdrop-blur-sm rounded-full border border-white/30">
-                                      <Video size={16} className="text-white" />
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                              {/* GCS path */}
-                              <div className="flex items-center gap-2">
-                                <div className="flex items-center gap-1.5 text-slate-400 shrink-0">
-                                  <ExternalLink size={10} />
-                                </div>
-                                <div className="flex-1 bg-slate-50/50 px-2 py-1.5 rounded-lg border border-slate-100 min-w-0">
-                                  <code className="text-[9px] text-slate-500 font-mono break-all">
-                                    {displayUri || "Pending output..."}
-                                  </code>
-                                </div>
-                                {displayUri && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      navigator.clipboard.writeText(displayUri);
-                                    }}
-                                    className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors border border-blue-100 shrink-0"
-                                    title="Copy GCS URI"
-                                  >
-                                    <Video size={14} />
-                                  </button>
-                                )}
+                      {/* Output section — DONE or has output */}
+                      {(op.status === "DONE" || displayUri) && (
+                        <div className="flex gap-2 items-start">
+                          {firebaseUrl && (
+                            <div
+                              className="relative w-32 aspect-video shrink-0 rounded-md overflow-hidden bg-black cursor-pointer group/thumb"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const origGcs = op.originalGcsUri || (op as any).inputGcsUri || op.payload?.instances?.[0]?.video?.gcsUri;
+                                const showSplit = (op.type === "upscale" || op.type === "transform") && !!origGcs;
+                                const left = op.type === "transform" ? "Input Video" : "Original Video";
+                                const right = op.type === "transform" ? "Transformed Output" : "4K Upscaled Output";
+                                onVideoSelect?.(firebaseUrl, showSplit ? gcsToFirebaseUrl(origGcs!) : undefined, left, right);
+                              }}
+                            >
+                              <video
+                                src={firebaseUrl + "#t=0.5"}
+                                className="w-full h-full object-contain"
+                                preload="metadata"
+                                muted
+                                playsInline
+                              />
+                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity">
+                                <Video size={14} className="text-white" />
                               </div>
                             </div>
-                          );
-                        })()}
-                      </>
-                    )}
-                  </div>
+                          )}
+                          {displayUri && (
+                            <div className="flex-1 min-w-0 flex items-start gap-1">
+                              <p className="text-[9px] font-mono text-slate-400 break-all leading-relaxed flex-1">{displayUri}</p>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(displayUri); }}
+                                className="shrink-0 p-1 text-slate-300 hover:text-blue-500 transition-colors"
+                                title="Copy GCS URI"
+                              >
+                                <ExternalLink size={10} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
-                  {/* Inline status check result */}
-                  {checkResults[op.id] && (
-                    <div className="pt-2 border-t border-slate-100">
-                      {checkResults[op.id].done ? (
-                        checkResults[op.id].error ? (
-                          <div className="bg-red-50 border border-red-100 rounded-lg p-3 text-[11px] text-red-700 font-medium">
-                            {checkResults[op.id].error.message || "Operation failed."}
-                          </div>
-                        ) : (
-                          <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 space-y-1">
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Completed</p>
-                            {(() => {
-                              const uri = checkResults[op.id].response?.videos?.[0]?.gcsUri;
-                              const url = uri ? gcsToFirebaseUrl(uri) : null;
-                              return uri && url ? (
-                                <>
-                                  <div
-                                    className="relative w-48 aspect-video rounded-lg overflow-hidden border border-emerald-200 bg-black cursor-pointer group/thumb mt-1"
-                                    onClick={() => {
-                                      const origGcs = op.originalGcsUri || (op as any).inputGcsUri || op.payload?.instances?.[0]?.video?.gcsUri;
-                                      const showSplit = (op.type === "upscale" || op.type === "transform") && !!origGcs;
-                                      const left = op.type === "transform" ? "Input Video" : "Original Video";
-                                      const right = op.type === "transform" ? "Transformed Output" : "4K Upscaled Output";
-                                      onVideoSelect?.(url, showSplit ? gcsToFirebaseUrl(origGcs!) : undefined, left, right);
-                                    }}
-                                  >
-                                    <video src={url + "#t=0.5"} className="w-full h-full object-cover" preload="metadata" muted playsInline />
-                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity">
-                                      <div className="p-2 bg-white/20 backdrop-blur-sm rounded-full border border-white/30">
+                      {/* Error section */}
+                      {op.status === "ERROR" && (
+                        <div className="bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-[11px] text-red-600">
+                          {op.error?.message || "Internal processing error occurred."}
+                          {op.error?.code && <span className="ml-2 text-red-400 font-mono text-[9px]">({op.error.code})</span>}
+                        </div>
+                      )}
+
+                      {/* Inline check result */}
+                      {checkResults[op.id] && (
+                        <div>
+                          {checkResults[op.id].done ? (
+                            checkResults[op.id].error ? (
+                              <div className="bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-[11px] text-red-600">
+                                {checkResults[op.id].error.message || "Operation failed."}
+                              </div>
+                            ) : (() => {
+                              const cUri = checkResults[op.id].response?.videos?.[0]?.gcsUri;
+                              const cUrl = cUri ? gcsToFirebaseUrl(cUri) : null;
+                              return (
+                                <div className="flex gap-2 items-start">
+                                  {cUrl && (
+                                    <div
+                                      className="relative w-32 aspect-video shrink-0 rounded-md overflow-hidden bg-black cursor-pointer group/thumb"
+                                      onClick={() => {
+                                        const origGcs = op.originalGcsUri || (op as any).inputGcsUri || op.payload?.instances?.[0]?.video?.gcsUri;
+                                        const showSplit = (op.type === "upscale" || op.type === "transform") && !!origGcs;
+                                        const left = op.type === "transform" ? "Input Video" : "Original Video";
+                                        const right = op.type === "transform" ? "Transformed Output" : "4K Upscaled Output";
+                                        onVideoSelect?.(cUrl, showSplit ? gcsToFirebaseUrl(origGcs!) : undefined, left, right);
+                                      }}
+                                    >
+                                      <video src={cUrl + "#t=0.5"} className="w-full h-full object-contain" preload="metadata" muted playsInline />
+                                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity">
                                         <Video size={14} className="text-white" />
                                       </div>
                                     </div>
-                                  </div>
-                                  <code className="text-[10px] text-emerald-800 font-mono break-all block mt-1">{uri}</code>
-                                </>
-                              ) : null;
-                            })()}
-                          </div>
-                        )
-                      ) : (
-                        <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-[11px] text-blue-600 font-medium flex items-center gap-2">
-                          <Loader2 size={12} className="animate-spin shrink-0" />
-                          Still running — check again shortly.
+                                  )}
+                                  {cUri && (
+                                    <p className="text-[9px] font-mono text-slate-400 break-all leading-relaxed flex-1">{cUri}</p>
+                                  )}
+                                </div>
+                              );
+                            })()
+                          ) : (
+                            <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-[11px] text-blue-600 flex items-center gap-2">
+                              <Loader2 size={12} className="animate-spin shrink-0" />
+                              Still running — check again shortly.
+                            </div>
+                          )}
                         </div>
                       )}
-                    </div>
-                  )}
 
-                  {/* Footer */}
-                  <div className="pt-2 flex justify-between items-center text-[10px] text-slate-400">
-                    <span className="flex items-center gap-1">
-                      Ref: <span className="font-mono">{op.id.slice(-6)}</span>
-                    </span>
-                    <span>{op.createdAt?.toDate().toLocaleString()}</span>
+                      {/* Operation ID + check button */}
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] font-mono text-slate-300 truncate flex-1">{op.name.split("/").pop()}</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleStatusCheck(op); }}
+                          disabled={checkingIds.has(op.id)}
+                          className="p-1 text-slate-300 hover:text-blue-500 transition-colors disabled:opacity-40"
+                          title="Run Deep Status Check"
+                        >
+                          {checkingIds.has(op.id) ? (
+                            <Loader2 size={10} className="animate-spin" />
+                          ) : (
+                            <Search size={10} />
+                          )}
+                        </button>
+                      </div>
+
+                    </div>
                   </div>
-                </div>
-              </div>
-            ))}
+                );
+              })}
           </div>
         )}
       </div>
