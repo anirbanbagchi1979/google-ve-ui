@@ -1,4 +1,11 @@
 {
+  "firestore": {
+    "database": "video-gen-bb",
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
   "hosting": {
     "site": "vexp-ui-bb",
     "source": ".",

@@ -1,6 +1,6 @@
 # Security Review — video-gen
 **Original audit date:** 2026-04-05
-**Last updated:** 2026-04-06
+**Last updated:** 2026-04-07
 
 ---
 
@@ -14,10 +14,11 @@
 | 4 | GCP access token in localStorage | HIGH | ✅ Fixed | 2026-04-06 |
 | 5 | Stack traces returned to client | MEDIUM | ❌ Open | — |
 | 6 | No rate limiting | MEDIUM | ❌ Open | — |
-| 7 | No Firestore security rules in repo | MEDIUM | ❌ Open | — |
+| 7 | No Firestore security rules in repo | MEDIUM | ✅ Fixed | 2026-04-07 |
 | 8 | `service-account.json` in repo | LOW | ✅ Fixed | 2026-04-06 |
 | 9 | No security headers | LOW | ❌ Open | — |
 | 10 | Firebase config exposed client-side | INFO | ❌ Open | — |
+| 11 | Firebase Storage rules fully open (no auth) | HIGH | ✅ Fixed | 2026-04-07 |
 
 ---
 
@@ -85,10 +86,18 @@ Error responses from the proxy include full Node.js stack traces, leaking intern
 
 ---
 
-### 7. ❌ No Firestore security rules in repo
-No `firestore.rules` file committed. Rules may be open in production or may have drifted from intent.
+### 7. ✅ No Firestore security rules in repo
+~~No `firestore.rules` file committed. Rules may be open in production or may have drifted from intent.~~
 
-**Fix:** Add `firestore.rules` to the repo and deploy with `firebase deploy --only firestore:rules`.
+**Resolution (2026-04-07):** `firestore.rules` added to repo and hooked into `firebase.json`. Rules are now data-driven with no hardcoded emails:
+- `isAllowed()` — checks `exists(allowlist/{email})` (doc ID = email)
+- `isAdmin()` — checks `isAllowed()` + `allowlist/{email}.isAdmin == true`
+- `allowlist` writable only by admins; users can read their own doc only
+- `operations` / `projects` / `videos` / `maskVideos` — read open to all allowed users; writes/deletes owner-gated where appropriate
+- `users` — each user can only read/write their own login-tracking doc
+- No wildcard fallback — unlisted collections are denied by default
+
+Previous production rules had `match /{document=**} { allow read, write: if request.auth != null }` which let any Google-authenticated user self-add to the `allowlist`.
 
 ---
 
@@ -128,7 +137,20 @@ Standard for Firebase web apps; acceptable since Firestore rules enforce access.
 
 | Priority | Issue | Effort |
 |----------|-------|--------|
-| 1 | Add Firestore security rules (#7) | Medium |
-| 2 | Add rate limiting (#6) | Medium |
-| 3 | Remove stack traces from error responses (#5) | Low |
-| 4 | Add security headers (#9) | Low |
+| 1 | Add rate limiting (#6) | Medium |
+| 2 | Remove stack traces from error responses (#5) | Low |
+| 3 | Add security headers (#9) | Low |
+
+---
+
+## Finding 11 — Firebase Storage rules fully open
+
+**Discovery:** 2026-04-07 during Storage rules review.
+
+The deployed rules were:
+```
+allow read, write;  // no auth required
+```
+Anyone on the internet could read, write, or delete any file in the bucket.
+
+**Resolution (2026-04-07):** `storage.rules` added to repo, hooked into `firebase.json`. Rules now require Firebase Authentication for all reads and restrict writes to the known upload paths (`videos/`, `images/`, `masks/`). Cross-service Firestore allowlist lookup was attempted but the required service agent (`gcp-sa-storage`) was not provisioned in this project, so auth-only rules were used instead. The allowlist enforcement remains at the app level (AuthGate) and IAM level (vef-proxy).

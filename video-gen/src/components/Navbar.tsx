@@ -6,16 +6,14 @@ import { useProject } from "@/context/ProjectContext";
 import { signInWithGoogle, logout } from "@/lib/auth";
 import { LogOut, User, ChevronDown, ShieldCheck, Check, Plus, FolderOpen } from "lucide-react";
 import AppIcon from "@/components/AppIcon";
-import { ADMIN_EMAILS } from "@/constants/admin";
 
 interface NavbarProps {
   onAdminClick?: () => void;
 }
 
 const Navbar = ({ onAdminClick }: NavbarProps) => {
-  const { user, loading } = useAuth();
+  const { user, loading, isAdmin } = useAuth();
   const { projects, currentProjectId, switchProject, createProject } = useProject();
-  const isAdmin = ADMIN_EMAILS.includes(user?.email ?? "");
 
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);

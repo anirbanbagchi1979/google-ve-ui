@@ -1,0 +1,59 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/video-gen-bb/documents {
+
+    // Doc ID for allowlist entries IS the email address.
+    // Bootstrap: before deploying these rules, manually create
+    // allowlist/{adminEmail} with { isAdmin: true } in the Firebase Console,
+    // or run: firebase firestore:set allowlist/<email> '{"isAdmin":true}'
+
+    function isAllowed() {
+      return request.auth != null &&
+        exists(/databases/video-gen-bb/documents/allowlist/$(request.auth.token.email));
+    }
+
+    function isAdmin() {
+      return isAllowed() &&
+        get(/databases/video-gen-bb/documents/allowlist/$(request.auth.token.email)).data.isAdmin == true;
+    }
+
+    // allowlist — users can read their own doc; admins can read/write all
+    match /allowlist/{email} {
+      allow read: if request.auth != null && request.auth.token.email == email;
+      allow read, write: if isAdmin();
+    }
+
+    // users — each user writes their own login-tracking doc
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // operations — visible to all allowed users in a project; only owner can modify/delete
+    match /operations/{operationId} {
+      allow read: if isAllowed();
+      allow create: if isAllowed() &&
+        request.resource.data.userEmail == request.auth.token.email;
+      allow update, delete: if isAllowed() &&
+        resource.data.userEmail == request.auth.token.email;
+    }
+
+    // videos — shared library, allowlisted users only
+    match /videos/{docId} {
+      allow read, write: if isAllowed();
+    }
+
+    // maskVideos — allowlisted users only
+    match /maskVideos/{docId} {
+      allow read, write: if isAllowed();
+    }
+
+    // projects — readable by all allowed users (shared); only owner can modify/delete
+    match /projects/{docId} {
+      allow read: if isAllowed();
+      allow create: if isAllowed() &&
+        request.resource.data.userEmail == request.auth.token.email;
+      allow update, delete: if isAllowed() &&
+        resource.data.userEmail == request.auth.token.email;
+    }
+  }
+}

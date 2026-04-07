@@ -4,46 +4,71 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { User } from "firebase/auth";
 import { onAuthUIStateChange } from "@/lib/auth";
 import { db } from "@/lib/firebase";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  isAllowed: boolean;
+  isAdmin: boolean;
+  allowlistChecked: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
+  isAllowed: false,
+  isAdmin: false,
+  allowlistChecked: false,
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAllowed, setIsAllowed] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [allowlistChecked, setAllowlistChecked] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthUIStateChange(async (user) => {
-      setUser(user);
+    const unsubscribe = onAuthUIStateChange(async (firebaseUser) => {
+      setUser(firebaseUser);
       setLoading(false);
-      
-      if (user) {
-        try {
-          await setDoc(doc(db, "users", user.uid), {
-            uid: user.uid,
-            email: user.email,
-            displayName: user.displayName,
-            photoURL: user.photoURL,
-            lastLogin: serverTimestamp()
-          }, { merge: true });
-        } catch (error) {
-          console.error("Error storing user in Firestore:", error);
-        }
+
+      if (!firebaseUser) {
+        setIsAllowed(false);
+        setIsAdmin(false);
+        setAllowlistChecked(true);
+        return;
+      }
+
+      // Track login (non-fatal)
+      try {
+        await setDoc(doc(db, "users", firebaseUser.uid), {
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          displayName: firebaseUser.displayName,
+          photoURL: firebaseUser.photoURL,
+          lastLogin: serverTimestamp(),
+        }, { merge: true });
+      } catch { /* non-fatal */ }
+
+      // Check allowlist — doc ID must equal the email address
+      try {
+        const snap = await getDoc(doc(db, "allowlist", firebaseUser.email ?? ""));
+        setIsAllowed(snap.exists());
+        setIsAdmin(snap.exists() && snap.data()?.isAdmin === true);
+      } catch {
+        setIsAllowed(false);
+        setIsAdmin(false);
+      } finally {
+        setAllowlistChecked(true);
       }
     });
     return () => unsubscribe();
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider value={{ user, loading, isAllowed, isAdmin, allowlistChecked }}>
       {children}
     </AuthContext.Provider>
   );

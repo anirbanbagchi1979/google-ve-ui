@@ -18,19 +18,14 @@ import { useAuth } from "@/context/AuthContext";
 import { ProjectProvider, useProject } from "@/context/ProjectContext";
 import LoginPage from "@/components/LoginPage";
 import { useGenerationFlow } from "@/hooks/useGenerationFlow";
-import { db } from "@/lib/firebase";
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { ADMIN_EMAILS } from "@/constants/admin";
 
-const AppContent = () => {
-  const { user } = useAuth();
-  const isAdmin = ADMIN_EMAILS.includes(user?.email ?? "");
+const AppContent = ({ isAdmin }: { isAdmin: boolean }) => {
   const [activeView, setActiveView] = useState("tasks");
   const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
   const [previewOriginalVideoUrl, setPreviewOriginalVideoUrl] = useState<string | null>(null);
   const [previewLeftLabel, setPreviewLeftLabel] = useState("Input Video");
   const [previewRightLabel, setPreviewRightLabel] = useState("Output");
-  
+
   const { currentProjectId } = useProject();
   const { operations, hasMoreOps, loadingMoreOps, loadMoreOps, logs, setLogs, addLog, handleGenerate, updateOperationStatus } = useGenerationFlow(setActiveView);
 
@@ -123,23 +118,7 @@ const AppContent = () => {
 };
 
 const AuthGate = () => {
-  const { user, loading } = useAuth();
-  const [allowlistChecked, setAllowlistChecked] = useState(false);
-  const [isAllowed, setIsAllowed] = useState(false);
-
-  useEffect(() => {
-    if (!user) return;
-    // Admins are always allowed without a Firestore round-trip
-    if (ADMIN_EMAILS.includes(user.email ?? "")) {
-      setIsAllowed(true);
-      setAllowlistChecked(true);
-      return;
-    }
-    // Everyone else: check Firestore allowlist
-    getDocs(query(collection(db, "allowlist"), where("email", "==", user.email ?? "")))
-      .then(snap => { setIsAllowed(!snap.empty); setAllowlistChecked(true); })
-      .catch(() => { setIsAllowed(false); setAllowlistChecked(true); });
-  }, [user]);
+  const { user, loading, isAllowed, isAdmin, allowlistChecked } = useAuth();
 
   if (loading || (user && !allowlistChecked)) return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -174,7 +153,7 @@ const AuthGate = () => {
   return (
     <ProjectProvider>
       <ConfigProvider>
-        <AppContent />
+        <AppContent isAdmin={isAdmin} />
       </ConfigProvider>
     </ProjectProvider>
   );

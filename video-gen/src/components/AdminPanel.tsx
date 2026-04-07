@@ -2,18 +2,17 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { Shield, Plus, Trash2, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
-import { collection, getDocs, addDoc, deleteDoc, doc, query, orderBy, Timestamp } from "firebase/firestore";
+import { collection, getDocs, setDoc, deleteDoc, doc, query, orderBy, Timestamp, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
-import { ADMIN_EMAILS } from "@/constants/admin";
 import { PanelHeader } from "@/components/ui/PanelHeader";
 import { SectionLabel } from "@/components/ui/SectionLabel";
 
 interface AllowedUser {
-  id: string;
   email: string;
   addedAt?: any;
   addedBy?: string;
+  isAdmin?: boolean;
 }
 
 const AdminPanel = () => {
@@ -22,7 +21,8 @@ const AdminPanel = () => {
   const [loading, setLoading] = useState(true);
   const [newEmail, setNewEmail] = useState("");
   const [adding, setAdding] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingEmail, setDeletingEmail] = useState<string | null>(null);
+  const [togglingEmail, setTogglingEmail] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   const showFeedback = (type: "success" | "error", msg: string) => {
@@ -30,25 +30,38 @@ const AdminPanel = () => {
     setTimeout(() => setFeedback(null), 3000);
   };
 
-  const INITIAL_USERS = ["balajikr@google.com", "kartikjain@google.com", "patpoon@google.com"];
-
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
       const snap = await getDocs(query(collection(db, "allowlist"), orderBy("addedAt", "desc")));
-      const existing = snap.docs.map(d => ({ id: d.id, email: d.data().email, addedAt: d.data().addedAt, addedBy: d.data().addedBy }));
-      // Seed initial users on first ever load
-      if (existing.length === 0) {
-        await Promise.all(INITIAL_USERS.map(email =>
-          addDoc(collection(db, "allowlist"), { email, addedBy: "system", addedAt: Timestamp.now() })
-        ));
-        const seeded = await getDocs(query(collection(db, "allowlist"), orderBy("addedAt", "desc")));
-        setUsers(seeded.docs.map(d => ({ id: d.id, email: d.data().email, addedAt: d.data().addedAt, addedBy: d.data().addedBy })));
-      } else {
-        setUsers(existing);
-      }
+
+      // Migrate any docs that have auto-generated IDs (id !== email) to email-as-ID format
+      const migrations: Promise<void>[] = [];
+      snap.docs.forEach(d => {
+        const email = d.data().email;
+        if (email && d.id !== email) {
+          migrations.push(
+            setDoc(doc(db, "allowlist", email), { ...d.data() })
+              .then(() => deleteDoc(doc(db, "allowlist", d.id)))
+          );
+        }
+      });
+      if (migrations.length > 0) await Promise.all(migrations);
+
+      // Re-fetch after migration (or use current data if no migration needed)
+      const source = migrations.length > 0
+        ? await getDocs(query(collection(db, "allowlist"), orderBy("addedAt", "desc")))
+        : snap;
+
+      setUsers(source.docs.map(d => ({
+        email: d.id, // doc ID is the email
+        addedAt: d.data().addedAt,
+        addedBy: d.data().addedBy,
+        isAdmin: d.data().isAdmin === true,
+      })));
     } catch (e) {
       console.error(e);
+      showFeedback("error", "Failed to load users.");
     } finally {
       setLoading(false);
     }
@@ -58,16 +71,21 @@ const AdminPanel = () => {
 
   const handleAdd = async () => {
     const email = newEmail.trim().toLowerCase();
-    if (!email || !email.endsWith("@google.com")) { showFeedback("error", "Only @google.com addresses are allowed."); return; }
-    if (users.some(u => u.email === email) || ADMIN_EMAILS.includes(email)) {
-      showFeedback("error", "Email is already allowed."); return;
+    if (!email || !email.includes("@")) {
+      showFeedback("error", "Enter a valid email address.");
+      return;
+    }
+    if (users.some(u => u.email === email)) {
+      showFeedback("error", "Email is already on the allowlist.");
+      return;
     }
     setAdding(true);
     try {
-      await addDoc(collection(db, "allowlist"), {
+      await setDoc(doc(db, "allowlist", email), {
         email,
         addedBy: user?.email ?? "unknown",
         addedAt: Timestamp.now(),
+        isAdmin: false,
       });
       setNewEmail("");
       await fetchUsers();
@@ -79,16 +97,29 @@ const AdminPanel = () => {
     }
   };
 
-  const handleDelete = async (id: string, email: string) => {
-    setDeletingId(id);
+  const handleDelete = async (email: string) => {
+    setDeletingEmail(email);
     try {
-      await deleteDoc(doc(db, "allowlist", id));
+      await deleteDoc(doc(db, "allowlist", email));
       await fetchUsers();
       showFeedback("success", `${email} removed.`);
     } catch (e) {
       showFeedback("error", "Failed to remove user.");
     } finally {
-      setDeletingId(null);
+      setDeletingEmail(null);
+    }
+  };
+
+  const handleToggleAdmin = async (email: string, currentIsAdmin: boolean) => {
+    setTogglingEmail(email);
+    try {
+      await updateDoc(doc(db, "allowlist", email), { isAdmin: !currentIsAdmin });
+      await fetchUsers();
+      showFeedback("success", `${email} is ${!currentIsAdmin ? "now an admin" : "no longer an admin"}.`);
+    } catch (e) {
+      showFeedback("error", "Failed to update admin status.");
+    } finally {
+      setTogglingEmail(null);
     }
   };
 
@@ -108,7 +139,7 @@ const AdminPanel = () => {
         </div>
       )}
 
-      {/* Add user — fixed */}
+      {/* Add user */}
       <div className="px-4 pt-4 pb-3 space-y-2 shrink-0 border-b border-slate-100">
         <SectionLabel>Add user</SectionLabel>
         <div className="flex gap-2">
@@ -131,44 +162,59 @@ const AdminPanel = () => {
         </div>
       </div>
 
-      {/* Allowed users list — scrollable */}
+      {/* User list */}
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
-        <SectionLabel>Allowed users ({ADMIN_EMAILS.length + users.length})</SectionLabel>
+        <SectionLabel>Allowed users ({users.length})</SectionLabel>
 
-        {/* Hardcoded admins */}
-        {ADMIN_EMAILS.map(email => (
-          <div key={email} className="flex items-center justify-between px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl">
-            <div className="min-w-0">
-              <p className="text-[12px] font-semibold text-slate-800 truncate">{email}</p>
-              <p className="text-[9px] font-bold uppercase text-slate-400 tracking-widest mt-0.5">Admin · permanent</p>
-            </div>
-            <Shield size={12} className="text-slate-400 shrink-0 ml-2" />
-          </div>
-        ))}
-
-        {/* Firestore users */}
         {loading ? (
           <div className="flex items-center justify-center py-6">
             <Loader2 size={16} className="animate-spin text-slate-300" />
           </div>
         ) : users.length === 0 ? (
-          <p className="text-[11px] text-slate-400 text-center py-6">No additional users yet.</p>
+          <p className="text-[11px] text-slate-400 text-center py-6">No users yet.</p>
         ) : (
           users.map(u => (
-            <div key={u.id} className="flex items-center justify-between px-3 py-2.5 bg-white border border-slate-200 rounded-xl">
-              <div className="min-w-0">
-                <p className="text-[12px] font-semibold text-slate-800 truncate">{u.email}</p>
+            <div key={u.email} className={`flex items-center justify-between px-3 py-2.5 rounded-xl border ${
+              u.isAdmin ? "bg-blue-50 border-blue-200" : "bg-white border-slate-200"
+            }`}>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <p className="text-[12px] font-semibold text-slate-800 truncate">{u.email}</p>
+                  {u.isAdmin && (
+                    <span className="px-1.5 py-0.5 bg-blue-100 text-blue-600 text-[9px] font-bold uppercase tracking-widest rounded shrink-0">
+                      Admin
+                    </span>
+                  )}
+                </div>
                 {u.addedBy && (
                   <p className="text-[9px] text-slate-400 mt-0.5 truncate">Added by {u.addedBy}</p>
                 )}
               </div>
-              <button
-                onClick={() => handleDelete(u.id, u.email)}
-                disabled={deletingId === u.id}
-                className="ml-2 p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100 disabled:opacity-40 shrink-0"
-              >
-                {deletingId === u.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-              </button>
+              <div className="flex items-center gap-1 ml-2 shrink-0">
+                {/* Toggle admin */}
+                <button
+                  onClick={() => handleToggleAdmin(u.email, u.isAdmin ?? false)}
+                  disabled={togglingEmail === u.email}
+                  title={u.isAdmin ? "Remove admin" : "Make admin"}
+                  className={`p-1.5 rounded-lg transition-colors border ${
+                    u.isAdmin
+                      ? "text-blue-500 hover:text-blue-700 hover:bg-blue-100 border-blue-200"
+                      : "text-slate-300 hover:text-blue-500 hover:bg-blue-50 border-transparent hover:border-blue-100"
+                  } disabled:opacity-40`}
+                >
+                  {togglingEmail === u.email
+                    ? <Loader2 size={12} className="animate-spin" />
+                    : <Shield size={12} />}
+                </button>
+                {/* Delete */}
+                <button
+                  onClick={() => handleDelete(u.email)}
+                  disabled={deletingEmail === u.email}
+                  className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100 disabled:opacity-40"
+                >
+                  {deletingEmail === u.email ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                </button>
+              </div>
             </div>
           ))
         )}

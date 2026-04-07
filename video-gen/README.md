@@ -14,7 +14,29 @@ A Next.js application for generating, transforming, and upscaling AI videos usin
 - **Task Monitor** — Real-time LRO tracking with filters by type, status, date, and user
 - **Side-by-side Preview** — Compare input vs output for upscale and transform jobs
 - **Project Isolation** — Operations and assets scoped per project
-- **Multi-user** — All `@google.com` accounts + `anirban.bagchi@gmail.com`
+- **Multi-user** — Firestore allowlist + admin list controls access
+
+---
+
+## Video Input Constraints
+
+**Maximum: 192 frames at 24 fps = 8 seconds**
+
+The Veo upscale and transform APIs require input videos that meet these constraints:
+
+| Constraint | Limit | How enforced |
+|---|---|---|
+| Duration | ≤ 8 seconds | Client-side — blocked before upload begins |
+| Frame count | ≤ 192 frames | Derived from 8s × 24fps |
+| Frame rate | 24 fps | Server-side by Vertex AI (cannot be measured client-side without playback) |
+
+If you upload a video longer than 8 seconds the app will block it immediately with an error before any bytes are sent. Videos with the wrong frame rate pass the client check but will be rejected by the API.
+
+**To prepare a compliant video:**
+```bash
+# Trim to 8s and set 24fps using ffmpeg
+ffmpeg -i input.mp4 -t 8 -vf fps=24 -c:v libx264 -crf 18 output.mp4
+```
 
 ---
 
@@ -141,37 +163,24 @@ firebase deploy --only hosting
 
 ## Security
 
-### Proxy authentication (`ENFORCE_PROXY_AUTH`)
+All Vertex AI calls go through `vef-proxy` — a private Cloud Run service that the browser cannot reach directly:
 
-All Vertex AI calls go through `/api/proxy`. The proxy enforces caller identity before forwarding:
+- `no-allow-unauthenticated` — Cloud Run rejects all unauthenticated requests before code runs
+- `roles/run.invoker` granted only to the compute SA of `ssrvexpuibb` (the Firebase-managed Cloud Run service)
+- SSRF allowlist — `vef-proxy` only forwards requests to `aiplatform.googleapis.com` prefixes
+- No GCP credentials are stored client-side
 
-1. Validates the Firebase ID token from the `Authorization: Bearer` header (signed by this Firebase project only)
-2. Checks the verified email against `ADMIN_EMAILS` and the Firestore `allowlist` collection
-3. Returns `401` (missing/invalid token) or `403` (not on allowlist) otherwise
-
-| Environment | Value | Effect |
-|---|---|---|
-| Local dev | `ENFORCE_PROXY_AUTH=false` | Auth skipped |
-| Production | `ENFORCE_PROXY_AUTH=true` | Full enforcement |
-
-To toggle in production:
-```bash
-gcloud run services update ssrvexpuibb \
-  --region us-central1 \
-  --project bagchi-genai-bb \
-  --set-env-vars ENFORCE_PROXY_AUTH=true
-```
+See [SECURITY_REVIEW.md](SECURITY_REVIEW.md) for the full audit (10 findings; 5 resolved).
 
 ### Remaining open items
 
 | # | Issue | Priority |
 |---|---|---|
-| 2 | SSRF — `endpoint` param not allowlisted in proxy | CRITICAL |
-| 4 | GCP access token stored in localStorage | HIGH |
-| 6 | No rate limiting on `/api/proxy` | MEDIUM |
+| 5 | Stack traces returned to client in error responses | MEDIUM |
+| 6 | No rate limiting on `vef-proxy` | MEDIUM |
 | 7 | No Firestore security rules committed to repo | MEDIUM |
-| 8 | `service-account.json` in repo (private only — move to Secret Manager) | LOW |
-| 9 | No CSP / security headers in Next.js config | LOW |
+| 9 | No CSP / security headers in `next.config.js` | LOW |
+| 10 | Firebase config exposed client-side (acceptable; depends on #7) | INFO |
 
 ---
 
@@ -246,11 +255,14 @@ gs://<gcsBucket>/
 
 ```
 Browser
-  └── Next.js (Firebase Hosting SSR via Cloud Run)
-        ├── /api/proxy  ──► Vertex AI (authenticated via service-account.json)
+  └── ssrvexpuibb (Firebase-managed Cloud Run — public)
         ├── Firebase Auth (Google OAuth)
-        ├── Firestore (operations, videos, maskVideos, projects)
-        └── Firebase Storage (video/image assets)
+        ├── Firestore (operations, videos, maskVideos, projects, allowlist)
+        ├── Firebase Storage (video/image assets + Vertex AI outputs)
+        └── /api/proxy ──► vef-proxy (Cloud Run, IAM-gated)
+                                └──► Vertex AI (ADC via compute SA)
 ```
 
-The `/api/proxy` route signs all Vertex AI requests server-side using the service account, so the GCP credentials are never exposed to the browser.
+`vef-proxy` is a separate Cloud Run service (`no-allow-unauthenticated`, `ingress: all`). Only the compute SA of `ssrvexpuibb` holds `roles/run.invoker` on it. The browser talks to `ssrvexpuibb` which then calls `vef-proxy` with an identity token — credentials never leave the server.
+
+See [VPC_NETWORKING.md](VPC_NETWORKING.md) for why `ingress: internal` was attempted and confirmed non-functional for this setup.
