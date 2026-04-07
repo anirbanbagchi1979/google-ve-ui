@@ -19,8 +19,6 @@ import {
 } from "lucide-react";
 import { PanelHeader } from "@/components/ui/PanelHeader";
 
-import { storage } from "@/lib/firebase";
-import { ref, getDownloadURL } from "firebase/storage";
 import { useConfig } from "@/context/ConfigContext";
 import { useAuth } from "@/context/AuthContext";
 import { formatBytes } from "@/utils/time";
@@ -78,54 +76,76 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
   const { config } = useConfig();
   const { user } = useAuth();
 
-  // Fetch output file sizes for completed operations
+  // Fetch metadata (size + download token) for all GCS URIs.
+  // Uses Firebase auth token so it works for any bucket, including cross-project ones
+  // like bagchi-ve-demos (arenaroyale) which getDownloadURL() cannot handle.
   useEffect(() => {
-    operations.forEach(async op => {
-      if (op.status !== "DONE" || outputSizes[op.id] !== undefined) return;
-      const gcsUri = op.result?.videos?.[0]?.gcsUri || op.result?.video?.gcsUri;
-      if (!gcsUri) return;
+    const gcsToMetaUrl = (gcsUri: string) => {
       const withoutScheme = gcsUri.replace("gs://", "");
       const slashIdx = withoutScheme.indexOf("/");
       const bucket = withoutScheme.substring(0, slashIdx);
       const path = withoutScheme.substring(slashIdx + 1);
       const encodedPath = path.split("/").map(encodeURIComponent).join("%2F");
-      const url = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodedPath}`;
-      try {
-        const token = user ? await user.getIdToken() : null;
-        const r = await fetch(url, {
-          headers: token ? { Authorization: `Firebase ${token}` } : {},
-        });
-        const data = await r.json();
-        if (data.size) setOutputSizes(prev => ({ ...prev, [op.id]: parseInt(data.size, 10) }));
-      } catch {}
-    });
-  }, [operations, user]);
+      return { metaUrl: `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodedPath}`, bucket, encodedPath };
+    };
 
-  // Resolve GCS URIs → token-bearing download URLs (needed for <video> playback on private bucket)
-  useEffect(() => {
+    const outputUris = operations
+      .filter(op => op.status === "DONE" && outputSizes[op.id] === undefined)
+      .map(op => ({ op, gcsUri: op.result?.videos?.[0]?.gcsUri || op.result?.video?.gcsUri }))
+      .filter((x): x is { op: Operation; gcsUri: string } => !!x.gcsUri);
+
     const allUris: string[] = [
-      ...operations.flatMap((op) => [
+      ...operations.flatMap(op => [
         op.result?.videos?.[0]?.gcsUri,
         op.result?.video?.gcsUri,
         op.originalGcsUri,
         (op as any).inputGcsUri,
         op.payload?.instances?.[0]?.video?.gcsUri,
       ]),
-      ...Object.values(checkResults).flatMap((r: any) => [
-        r?.response?.videos?.[0]?.gcsUri,
-      ]),
+      ...Object.values(checkResults).flatMap((r: any) => [r?.response?.videos?.[0]?.gcsUri]),
     ].filter((u): u is string => !!u && !resolvedUris.current.has(u));
 
-    allUris.forEach(async (uri) => {
-      resolvedUris.current.add(uri); // mark before fetch to prevent duplicate requests
-      try {
-        const url = await getDownloadURL(ref(storage, uri));
-        setDownloadUrls(prev => ({ ...prev, [uri]: url }));
-      } catch {
-        resolvedUris.current.delete(uri); // allow retry on failure
+    if (outputUris.length === 0 && allUris.length === 0) return;
+
+    (async () => {
+      const firebaseToken = user ? await user.getIdToken() : null;
+      const headers: Record<string, string> = firebaseToken ? { Authorization: `Firebase ${firebaseToken}` } : {};
+
+      // Fetch metadata for output URIs (gets size + downloadTokens in one call)
+      for (const { op, gcsUri } of outputUris) {
+        const { metaUrl, bucket, encodedPath } = gcsToMetaUrl(gcsUri);
+        try {
+          const r = await fetch(metaUrl, { headers });
+          const data = await r.json();
+          if (data.size) setOutputSizes(prev => ({ ...prev, [op.id]: parseInt(data.size, 10) }));
+          if (data.downloadTokens) {
+            const token = data.downloadTokens.split(",")[0];
+            const dlUrl = `${metaUrl}?alt=media&token=${token}`;
+            resolvedUris.current.add(gcsUri);
+            setDownloadUrls(prev => ({ ...prev, [gcsUri]: dlUrl }));
+          }
+        } catch {}
       }
-    });
-  }, [operations, checkResults]);
+
+      // Fetch metadata for non-output URIs (input videos, originals) — only need downloadTokens
+      for (const uri of allUris) {
+        resolvedUris.current.add(uri);
+        const { metaUrl } = gcsToMetaUrl(uri);
+        try {
+          const r = await fetch(metaUrl, { headers });
+          const data = await r.json();
+          if (data.downloadTokens) {
+            const token = data.downloadTokens.split(",")[0];
+            setDownloadUrls(prev => ({ ...prev, [uri]: `${metaUrl}?alt=media&token=${token}` }));
+          } else {
+            resolvedUris.current.delete(uri); // allow retry if no token yet
+          }
+        } catch {
+          resolvedUris.current.delete(uri);
+        }
+      }
+    })();
+  }, [operations, checkResults, user]);
 
   // Filters
   const [filterType, setFilterType] = useState<string>("all");
