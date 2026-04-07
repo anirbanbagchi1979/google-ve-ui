@@ -61,6 +61,8 @@ Even when the VPC connector was successfully attached (before Firebase overwrote
 
 **Note:** Private Google Access is enabled on the default subnet (`us-central1`), so Google API calls (`googleapis.com`) would work through the VPC. But `*.run.app` is not a `googleapis.com` domain — it may not benefit from PGA routing.
 
+**Confirmed 2026-04-06 (isolated test):** VPC connector was attached to ssrvexpuibb WITHOUT a preceding Firebase deploy, and vef-proxy ingress was set to internal. A real generation request was triggered. vef-proxy received zero traffic and ssrvexpuibb returned "Internal proxy error". This confirms Problem 2 is fundamental — `*.run.app` URLs do not route through the VPC connector to internal-ingress Cloud Run services. Internal ingress is **not a viable option** for this setup.
+
 ### VPC connector that was created
 ```
 Name:    vef-connector
@@ -119,7 +121,7 @@ echo "✔ Done — VPC connector re-attached"
 1. Operationally fragile — forgetting to use the script breaks prod immediately
 2. Problem 2 above (routing) was never confirmed fixed — vef-proxy may still receive zero traffic even with connector attached
 
-**Before committing to this approach:** test in isolation by running just the `gcloud run services update ssrvexpuibb --vpc-connector` command (without a preceding Firebase deploy) and verify vef-proxy logs show incoming traffic before switching it to `internal` ingress.
+**DO NOT attempt this.** Isolated testing on 2026-04-06 confirmed that even with VPC connector correctly attached (verified via `gcloud run services describe`), vef-proxy receives zero traffic with internal ingress. The routing simply does not work for `*.run.app` URLs through Serverless VPC Access.
 
 ---
 
