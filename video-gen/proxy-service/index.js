@@ -8,6 +8,13 @@ const auth = new GoogleAuth({
   scopes: "https://www.googleapis.com/auth/cloud-platform",
 });
 
+const ALLOWED_ENDPOINT_PREFIXES = [
+  "https://us-central1-aiplatform.googleapis.com/",
+  "https://us-east1-aiplatform.googleapis.com/",
+  "https://europe-west1-aiplatform.googleapis.com/",
+  "https://asia-east1-aiplatform.googleapis.com/",
+];
+
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
@@ -17,6 +24,10 @@ app.post("/proxy", async (req, res) => {
     const { endpoint, payload } = req.body;
     if (!endpoint || !payload) {
       return res.status(400).json({ error: "Missing endpoint or payload" });
+    }
+    if (!ALLOWED_ENDPOINT_PREFIXES.some(prefix => endpoint.startsWith(prefix))) {
+      console.warn("[vef-proxy POST] Rejected endpoint:", endpoint);
+      return res.status(400).json({ error: "Endpoint not allowed" });
     }
     const client = await auth.getClient();
     const projectId = await auth.getProjectId();
