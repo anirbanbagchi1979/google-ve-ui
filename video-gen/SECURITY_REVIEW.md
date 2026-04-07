@@ -30,6 +30,13 @@
 
 ---
 
+### 1b. ⚠️ vef-proxy ingress set to All (accepted risk)
+`vef-proxy` uses `ingress: all` rather than `internal`. Internal ingress was attempted but Cloud Run service-to-service calls do not route through the VPC when the calling service (ssrvexpuibb) is Firebase-managed — Firebase overwrites VPC connector settings on every deploy, breaking the proxy. Switching to internal immediately causes proxy failures.
+
+**Accepted mitigation:** `no-allow-unauthenticated` + IAM (`roles/run.invoker` granted only to the compute SA) means every unauthenticated or unauthorised request is rejected by Cloud Run before reaching any code. The URL being publicly resolvable does not grant access.
+
+---
+
 ### 2. ✅ SSRF in proxy POST handler
 ~~The `endpoint` parameter from the request body is passed directly to `fetch()` without validation. An attacker can make the server fetch any URL (internal GCP metadata, other services).~~
 
