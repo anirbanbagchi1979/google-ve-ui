@@ -7,7 +7,6 @@ import { signInWithGoogle } from "@/lib/auth";
 import { useAuth } from "@/context/AuthContext";
 
 const LoginPage = () => {
-  const { setToken } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -15,8 +14,7 @@ const LoginPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await signInWithGoogle();
-      if (result.credential) setToken(result.credential.accessToken || null);
+      await signInWithGoogle();
     } catch (err: any) {
       setError("Sign-in failed. Please try again.");
     } finally {

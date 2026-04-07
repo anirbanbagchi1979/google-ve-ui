@@ -123,7 +123,7 @@ const AppContent = () => {
 };
 
 const AuthGate = () => {
-  const { user, loading, setToken } = useAuth();
+  const { user, loading } = useAuth();
   const [allowlistChecked, setAllowlistChecked] = useState(false);
   const [isAllowed, setIsAllowed] = useState(false);
 
@@ -162,7 +162,7 @@ const AuthGate = () => {
           </p>
         </div>
         <button
-          onClick={async () => { await logout(); setToken(null); }}
+          onClick={async () => { await logout(); }}
           className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-lg border border-slate-700 transition-colors"
         >
           Sign out

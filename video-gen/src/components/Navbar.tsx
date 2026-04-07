@@ -13,7 +13,7 @@ interface NavbarProps {
 }
 
 const Navbar = ({ onAdminClick }: NavbarProps) => {
-  const { user, loading, setToken } = useAuth();
+  const { user, loading } = useAuth();
   const { projects, currentProjectId, switchProject, createProject } = useProject();
   const isAdmin = ADMIN_EMAILS.includes(user?.email ?? "");
 
@@ -37,8 +37,7 @@ const Navbar = ({ onAdminClick }: NavbarProps) => {
 
   const handleLogin = async () => {
     try {
-      const result = await signInWithGoogle();
-      if (result.credential) setToken(result.credential.accessToken || null);
+      await signInWithGoogle();
     } catch (err) {
       console.error("Login failed", err);
     }
@@ -48,7 +47,6 @@ const Navbar = ({ onAdminClick }: NavbarProps) => {
     setUserDropdownOpen(false);
     try {
       await logout();
-      setToken(null);
     } catch (err) {
       console.error("Logout failed", err);
     }
