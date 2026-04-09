@@ -63,7 +63,8 @@ const TYPE_ICON: Record<string, React.ReactNode> = {
   upscale:    <Sparkles size={13} className="text-blue-400 shrink-0" />,
   transform:  <Clapperboard size={13} className="text-blue-400 shrink-0" />,
   generation: <Film size={13} className="text-blue-400 shrink-0" />,
-  perf:       <Drama size={13} className="text-blue-400 shrink-0" />,
+  "perf-estimation": <Drama size={13} className="text-blue-400 shrink-0" />,
+  "perf-generation": <Drama size={13} className="text-blue-400 shrink-0" />,
 };
 
 const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog, onVideoSelect, onStatusUpdate }: OperationsPanelProps) => {
@@ -91,13 +92,14 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
 
     const outputUris = operations
       .filter(op => op.status === "DONE" && outputSizes[op.id] === undefined)
-      .map(op => ({ op, gcsUri: op.result?.videos?.[0]?.gcsUri || op.result?.video?.gcsUri }))
+      .map(op => ({ op, gcsUri: (op as any).outputGcsUri || op.result?.videos?.find((v: any) => v.mimeType === "video/mp4")?.gcsUri || op.result?.videos?.[0]?.gcsUri || op.result?.video?.gcsUri }))
       .filter((x): x is { op: Operation; gcsUri: string } => !!x.gcsUri);
 
     const allUris: string[] = [
       ...operations.flatMap(op => [
         op.result?.videos?.[0]?.gcsUri,
         op.result?.video?.gcsUri,
+        (op as any).outputGcsUri,
         op.originalGcsUri,
         (op as any).inputGcsUri,
         op.payload?.instances?.[0]?.video?.gcsUri,
@@ -180,9 +182,10 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
     return `${m}m ${s}s`;
   };
 
-  // Extract the actual output GCS URI from result (Veo returns videos array)
+  // Extract the actual output GCS URI — prefer the corrected outputGcsUri field
+  // (which picks the .mp4 entry), then fall back to result.videos
   const getOutputGcsUri = (op: Operation): string | null => {
-    return op.result?.videos?.[0]?.gcsUri || op.result?.video?.gcsUri || null;
+    return (op as any).outputGcsUri || op.result?.videos?.find((v: any) => v.mimeType === "video/mp4")?.gcsUri || op.result?.videos?.[0]?.gcsUri || op.result?.video?.gcsUri || null;
   };
 
 
@@ -476,9 +479,13 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
                               onClick={(e) => {
                                 e.stopPropagation();
                                 const origGcs = op.originalGcsUri || (op as any).inputGcsUri || op.payload?.instances?.[0]?.video?.gcsUri;
-                                const showSplit = (op.type === "upscale" || op.type === "transform") && !!origGcs;
-                                const left = op.type === "transform" ? "Input Video" : "Original Video";
-                                const right = op.type === "transform" ? "Transformed Output" : "4K Upscaled Output";
+                                const showSplit = (op.type === "upscale" || op.type === "transform" || op.type === "perf-estimation" || op.type === "perf-generation") && !!origGcs;
+                                const left = op.type === "perf-estimation" ? "Source Video"
+                                  : op.type === "perf-generation" ? "Source Video"
+                                  : op.type === "transform" ? "Input Video" : "Original Video";
+                                const right = op.type === "perf-estimation" ? "Blue Mesh"
+                                  : op.type === "perf-generation" ? "Performance Output"
+                                  : op.type === "transform" ? "Transformed Output" : "4K Upscaled Output";
                                 onVideoSelect?.(firebaseUrl, showSplit ? (downloadUrls[origGcs!] ?? undefined) : undefined, left, right);
                               }}
                             >
@@ -546,9 +553,13 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
                                       className="relative w-32 aspect-video shrink-0 rounded-md overflow-hidden bg-black cursor-pointer group/thumb"
                                       onClick={() => {
                                         const origGcs = op.originalGcsUri || (op as any).inputGcsUri || op.payload?.instances?.[0]?.video?.gcsUri;
-                                        const showSplit = (op.type === "upscale" || op.type === "transform") && !!origGcs;
-                                        const left = op.type === "transform" ? "Input Video" : "Original Video";
-                                        const right = op.type === "transform" ? "Transformed Output" : "4K Upscaled Output";
+                                        const showSplit = (op.type === "upscale" || op.type === "transform" || op.type === "perf-estimation" || op.type === "perf-generation") && !!origGcs;
+                                        const left = op.type === "perf-estimation" ? "Source Video"
+                                          : op.type === "perf-generation" ? "Source Video"
+                                          : op.type === "transform" ? "Input Video" : "Original Video";
+                                        const right = op.type === "perf-estimation" ? "Blue Mesh"
+                                          : op.type === "perf-generation" ? "Performance Output"
+                                          : op.type === "transform" ? "Transformed Output" : "4K Upscaled Output";
                                         onVideoSelect?.(cUrl, showSplit ? (downloadUrls[origGcs!] ?? undefined) : undefined, left, right);
                                       }}
                                     >

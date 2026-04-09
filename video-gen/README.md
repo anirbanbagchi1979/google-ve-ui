@@ -11,6 +11,7 @@ A Next.js application for generating, transforming, and upscaling AI videos usin
 - **Video Generation** — Text-to-video and image-to-video via Veo on Vertex AI
 - **4K Upscaling** — Upscale any video to 4K using `veo3p1_upscale`
 - **Video Transform** — Transform videos with control image, mask video, strength and diffusion step controls via `veo-experimental`
+- **Performance Control** — Two-step motion transfer: extract blue mesh poses from a source video, then generate a character performing that motion
 - **Task Monitor** — Real-time LRO tracking with filters by type, status, date, and user
 - **Side-by-side Preview** — Compare input vs output for upscale and transform jobs
 - **Project Isolation** — Operations and assets scoped per project
@@ -99,13 +100,68 @@ The service account needs the following IAM roles on the GCP project:
 - **Vertex AI User** (`roles/aiplatform.user`) — to call Veo APIs
 - **Storage Object Admin** (`roles/storage.objectAdmin`) — to write output videos to GCS
 
-### 4. Run the dev server
+### 4. Deploy Firestore indexes and security rules
+
+On a fresh database, deploy indexes first (they take a few minutes to build):
+
+```bash
+# Deploy composite indexes (required for queries with orderBy + where)
+firebase deploy --only firestore:indexes
+
+# Deploy security rules
+firebase deploy --only firestore:rules
+```
+
+Index definitions are in `firestore.indexes.json`. Security rules are in `firestore.rules`.
+
+**Collections and their required indexes:**
+
+| Collection | Index fields | Purpose |
+|---|---|---|
+| `operations` | `projectId` + `createdAt desc` | Task Monitor list |
+| `operations` | `projectId` + `type` + `createdAt desc` | PerfJobTracker (filters by perf-estimation/perf-generation) |
+| `operations` | `userEmail` + `createdAt desc` | Filter by user |
+| `videos` | `projectId` + `createdAt desc` | Media library |
+| `videos` | `projectId` + `isUpscaleOutput` + `createdAt desc` | Upscale panel (excludes already-upscaled) |
+| `perfMeshes` | `projectId` + `createdAt desc` | Performance panel mesh library |
+| `projects` | `userEmail` + `createdAt desc` | Project list |
+| `upscale_inputs` | `projectId` + `createdAt desc` | Legacy upscale inputs |
+
+### 5. Bootstrap the first admin user
+
+Before anyone can sign in, create the first allowlist entry manually:
+
+```bash
+# Using Firebase CLI (replace with your email)
+firebase firestore:set allowlist/your-email@example.com '{"isAdmin":true}' --database video-gen-bb
+```
+
+After this, the first admin can add other users via the Admin panel in the UI.
+
+### 6. Deploy Storage rules
+
+```bash
+firebase deploy --only storage
+```
+
+Storage rules (`storage.rules`) allow authenticated users to read all files and write to `/videos/`, `/images/`, `/masks/`, and `/perfMeshes/` paths. The app-level allowlist (AuthGate) provides the primary access control; storage rules are a secondary layer.
+
+### 7. Run the dev server
 
 ```bash
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+### Available npm scripts
+
+| Script | Command | Purpose |
+|---|---|---|
+| `dev` | `next dev` | Start dev server with HMR |
+| `build` | `next build` | Production build |
+| `start` | `next start` | Start production server |
+| `lint` | `next lint` | Run ESLint |
 
 ---
 
@@ -178,61 +234,44 @@ See [SECURITY_REVIEW.md](SECURITY_REVIEW.md) for the full audit (10 findings; 5 
 |---|---|---|
 | 5 | Stack traces returned to client in error responses | MEDIUM |
 | 6 | No rate limiting on `vef-proxy` | MEDIUM |
-| 7 | No Firestore security rules committed to repo | MEDIUM |
+| 7 | ~~No Firestore security rules committed to repo~~ | ~~MEDIUM~~ RESOLVED |
 | 9 | No CSP / security headers in `next.config.js` | LOW |
 | 10 | Firebase config exposed client-side (acceptable; depends on #7) | INFO |
 
 ---
 
-## Authentication
+## Authentication & Access Control
 
-Access is restricted to:
+Access is controlled by a data-driven allowlist stored in Firestore (`allowlist` collection):
 
-- Any `@google.com` Google account
-- `anirban.bagchi@gmail.com`
+1. Users sign in with Google OAuth via Firebase Auth
+2. The app checks if the user's email exists in the `allowlist` collection
+3. If allowed, the `isAdmin` flag on their doc determines admin access
 
-Configured in `src/app/page.tsx`. All users must sign in with Google OAuth.
+**Admin panel** (accessible via shield icon in sidebar for admins):
+- View all allowlisted users
+- Add/remove users from the allowlist
+- Toggle admin status
+
+To bootstrap the first admin, see [step 5 in Local Development](#5-bootstrap-the-first-admin-user).
 
 ---
 
 ## Firestore Security Rules
 
-Enforce in the [Firebase Console](https://console.firebase.google.com/project/bagchi-genai-bb/firestore/rules):
+Rules are defined in [`firestore.rules`](firestore.rules) and deployed via `firebase deploy --only firestore:rules`.
 
-```js
-rules_version = '2';
-service cloud.firestore {
-  match /databases/video-gen-bb/documents {
+Uses a data-driven allowlist (`allowlist` collection) with admin flag. Collections:
 
-    // Operations are private to the creating user
-    match /operations/{operationId} {
-      allow read, update, delete: if request.auth != null
-        && request.auth.token.email == resource.data.userEmail;
-      allow create: if request.auth != null
-        && request.auth.token.email == request.resource.data.userEmail;
-    }
-
-    // Videos, mask videos, projects: any authorised user
-    match /videos/{docId} {
-      allow read, write: if request.auth != null
-        && (request.auth.token.email.matches('.*@google\\.com')
-            || request.auth.token.email == 'anirban.bagchi@gmail.com');
-    }
-
-    match /maskVideos/{docId} {
-      allow read, write: if request.auth != null
-        && (request.auth.token.email.matches('.*@google\\.com')
-            || request.auth.token.email == 'anirban.bagchi@gmail.com');
-    }
-
-    match /projects/{docId} {
-      allow read, write: if request.auth != null
-        && (request.auth.token.email.matches('.*@google\\.com')
-            || request.auth.token.email == 'anirban.bagchi@gmail.com');
-    }
-  }
-}
-```
+| Collection | Access |
+|---|---|
+| `allowlist` | Users read own doc; admins read/write all |
+| `users` | Owner read/write only |
+| `operations` | Allowlisted read; owner create/update/delete |
+| `videos` | Allowlisted read/write |
+| `maskVideos` | Allowlisted read/write |
+| `perfMeshes` | Allowlisted read/write |
+| `projects` | Allowlisted read; owner create/update/delete |
 
 > **Note:** Avoid a catch-all `match /{document=**}` rule — it overrides collection-specific rules and grants blanket access.
 
@@ -243,10 +282,11 @@ service cloud.firestore {
 ```
 gs://<gcsBucket>/
   inputs/        # Source videos and images
-  outputs/       # Generated / upscaled / transformed videos
+  outputs/       # Generated / upscaled / transformed / performance videos
   masks/         # Mask videos for Video Transform
-  images/        # Control images for Video Transform
+  images/        # Control images for Video Transform and character images for Performance
   videos/        # Uploaded input videos
+  perfMeshes/    # Uploaded blue mesh videos for Performance Control
 ```
 
 ---
@@ -257,7 +297,7 @@ gs://<gcsBucket>/
 Browser
   └── ssrvexpuibb (Firebase-managed Cloud Run — public)
         ├── Firebase Auth (Google OAuth)
-        ├── Firestore (operations, videos, maskVideos, projects, allowlist)
+        ├── Firestore (operations, videos, maskVideos, perfMeshes, projects, allowlist)
         ├── Firebase Storage (video/image assets + Vertex AI outputs)
         └── /api/proxy ──► vef-proxy (Cloud Run, IAM-gated)
                                 └──► Vertex AI (ADC via compute SA)
@@ -266,3 +306,62 @@ Browser
 `vef-proxy` is a separate Cloud Run service (`no-allow-unauthenticated`, `ingress: all`). Only the compute SA of `ssrvexpuibb` holds `roles/run.invoker` on it. The browser talks to `ssrvexpuibb` which then calls `vef-proxy` with an identity token — credentials never leave the server.
 
 See [VPC_NETWORKING.md](VPC_NETWORKING.md) for why `ingress: internal` was attempted and confirmed non-functional for this setup.
+
+---
+
+## Proxy Service (`proxy-service/`)
+
+The `vef-proxy` is an Express.js Cloud Run service that relays requests from the app to Vertex AI:
+
+- **Endpoints:** `POST /proxy` (forward to Vertex AI), `GET /proxy?name=...` (poll operation status), `GET /health`
+- **SSRF protection:** Only forwards to `aiplatform.googleapis.com` in allowed regions (us-central1, us-east1, europe-west1, asia-east1)
+- **Auth:** Uses Application Default Credentials (ADC) from the Cloud Run compute service account
+
+### Deploying the proxy
+
+```bash
+gcloud run deploy vef-proxy \
+  --source ./proxy-service \
+  --region us-central1 \
+  --project bagchi-genai-bb \
+  --no-allow-unauthenticated
+```
+
+Then grant the Firebase-managed Cloud Run service account `roles/run.invoker` on `vef-proxy`:
+
+```bash
+gcloud run services add-iam-policy-binding vef-proxy \
+  --region us-central1 \
+  --member="serviceAccount:<COMPUTE_SA_OF_SSRVEXPUIBB>" \
+  --role="roles/run.invoker"
+```
+
+### Local development mode
+
+When `K_SERVICE` is not set (i.e., not running on Cloud Run), the Next.js `/api/proxy` route calls Vertex AI directly using `service-account.json` instead of going through `vef-proxy`.
+
+---
+
+## Settings Panel
+
+The Settings panel (gear icon in sidebar) allows runtime configuration of:
+
+| Section | Settings |
+|---|---|
+| Vertex AI | Project ID, region, GCS bucket, output folder, generation model, upscale model |
+| Firebase | API key, auth domain, project ID, storage bucket, messaging sender ID, app ID, Firestore DB ID |
+
+Settings persist to `localStorage` as `veo_dashboard_config`. Changes to Firebase settings trigger a page reload.
+
+---
+
+## Debug Console
+
+A collapsible log viewer at the bottom of the screen shows:
+
+- **REQUEST** — API calls to Vertex AI (endpoint, payload)
+- **RESPONSE** — API responses with status codes
+- **ERROR** — Failures with details
+- **FLOW** — Operational milestones (task queued, operation complete)
+
+Logs are stored in memory (max 50 entries). A red dot indicator appears when errors are present.

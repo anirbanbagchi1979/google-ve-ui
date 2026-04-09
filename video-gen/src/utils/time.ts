@@ -35,6 +35,79 @@ export const formatBytes = (bytes: number): string => {
 };
 
 /**
+ * Get the exact pixel dimensions of a video from a URL.
+ */
+export const getVideoDimensions = (url: string): Promise<{ width: number; height: number }> =>
+  new Promise((resolve, reject) => {
+    const vid = document.createElement("video");
+    vid.preload = "metadata";
+    vid.onloadedmetadata = () => {
+      resolve({ width: vid.videoWidth, height: vid.videoHeight });
+      vid.src = "";
+    };
+    vid.onerror = () => { reject(new Error("Failed to load video metadata")); };
+    vid.src = url;
+  });
+
+/**
+ * Resize an image file to match target dimensions.
+ * Centers and crops the image to fill the target aspect ratio exactly,
+ * then scales to the target pixel size.
+ * Returns a new File with the resized image.
+ */
+export const resizeImageToMatchVideo = (
+  file: File,
+  targetWidth: number,
+  targetHeight: number
+): Promise<File> =>
+  new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const canvas = document.createElement("canvas");
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("Canvas not supported")); return; }
+
+      // Cover-crop: scale image to fill target, then center-crop
+      const targetRatio = targetWidth / targetHeight;
+      const imgRatio = img.naturalWidth / img.naturalHeight;
+
+      let sx: number, sy: number, sw: number, sh: number;
+      if (imgRatio > targetRatio) {
+        // Image is wider — crop sides
+        sh = img.naturalHeight;
+        sw = sh * targetRatio;
+        sx = (img.naturalWidth - sw) / 2;
+        sy = 0;
+      } else {
+        // Image is taller — crop top/bottom
+        sw = img.naturalWidth;
+        sh = sw / targetRatio;
+        sx = 0;
+        sy = (img.naturalHeight - sh) / 2;
+      }
+
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, targetWidth, targetHeight);
+
+      const mimeType = file.type === "image/png" ? "image/png" : "image/jpeg";
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) { reject(new Error("Failed to create blob")); return; }
+          const resizedFile = new File([blob], file.name, { type: mimeType });
+          resolve(resizedFile);
+        },
+        mimeType,
+        mimeType === "image/jpeg" ? 0.95 : undefined
+      );
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Failed to load image")); };
+    img.src = url;
+  });
+
+/**
  * Detect video aspect ratio from a File object by loading metadata.
  */
 export const detectAspectRatioFromFile = (file: File): Promise<"16:9" | "9:16"> =>

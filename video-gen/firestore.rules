@@ -47,6 +47,16 @@ service cloud.firestore {
       allow read, write: if isAllowed();
     }
 
+    // perfMeshes — blue mesh library, allowlisted users only
+    match /perfMeshes/{docId} {
+      allow read, write: if isAllowed();
+    }
+
+    // perfCharacters — character image library, allowlisted users only
+    match /perfCharacters/{docId} {
+      allow read, write: if isAllowed();
+    }
+
     // projects — readable by all allowed users (shared); only owner can modify/delete
     match /projects/{docId} {
       allow read: if isAllowed();

@@ -7,6 +7,8 @@ export interface VideoAsset {
   createdAt: any;
 }
 
+export type OperationType = "generation" | "upscale" | "transform" | "perf-estimation" | "perf-generation";
+
 export interface Operation {
   id: string;
   name: string;
@@ -24,6 +26,39 @@ export interface Operation {
     code: number;
     message: string;
   };
+  // Performance-specific fields
+  inputVideoUrl?: string;
+  outputGcsUri?: string;
+  outputVideoUrl?: string;
+  perfMeshDocId?: string;
+  meshGcsUri?: string;
+  meshVideoUrl?: string;
+  characterImageGcsUri?: string;
+  characterImageUrl?: string;
+  sourceVideoUrl?: string;
+  sourceEstimationOpId?: string;
+}
+
+export interface PerfMesh {
+  id: string;
+  name: string;
+  url: string;
+  gcsUri: string;
+  sourceVideoUrl?: string;
+  sourceVideoGcsUri?: string;
+  sourceOperationId?: string;
+  projectId: string;
+  createdAt: any;
+}
+
+export interface PerfCharacter {
+  id: string;
+  name: string;
+  url: string;
+  gcsUri: string;
+  mimeType: string;
+  projectId: string;
+  createdAt: any;
 }
 
 export interface Log {

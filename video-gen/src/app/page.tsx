@@ -10,6 +10,7 @@ import OperationsPanel from "@/components/OperationsPanel";
 import SettingsPanel from "@/components/SettingsPanel";
 import UpscalePanel from "@/components/UpscalePanel";
 import TransformPanel from "@/components/TransformPanel";
+import PerformancePanel from "@/components/PerformancePanel";
 import AdminPanel from "@/components/AdminPanel";
 import { Settings, ShieldCheck } from "lucide-react";
 import { logout } from "@/lib/auth";
@@ -23,8 +24,10 @@ const AppContent = ({ isAdmin }: { isAdmin: boolean }) => {
   const [activeView, setActiveView] = useState("tasks");
   const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
   const [previewOriginalVideoUrl, setPreviewOriginalVideoUrl] = useState<string | null>(null);
+  const [previewTertiaryVideoUrl, setPreviewTertiaryVideoUrl] = useState<string | null>(null);
   const [previewLeftLabel, setPreviewLeftLabel] = useState("Input Video");
   const [previewRightLabel, setPreviewRightLabel] = useState("Output");
+  const [previewCenterLabel, setPreviewCenterLabel] = useState("Blue Mesh");
 
   const { currentProjectId } = useProject();
   const { operations, hasMoreOps, loadingMoreOps, loadMoreOps, logs, setLogs, addLog, handleGenerate, updateOperationStatus } = useGenerationFlow(setActiveView);
@@ -33,6 +36,7 @@ const AppContent = ({ isAdmin }: { isAdmin: boolean }) => {
   useEffect(() => {
     setPreviewVideoUrl(null);
     setPreviewOriginalVideoUrl(null);
+    setPreviewTertiaryVideoUrl(null);
   }, [activeView, currentProjectId]);
 
   return (
@@ -52,15 +56,16 @@ const AppContent = ({ isAdmin }: { isAdmin: boolean }) => {
             ) : activeView === "transform" ? (
               <TransformPanel onGenerate={handleGenerate} onVideoSelect={(url) => { setPreviewVideoUrl(url); setPreviewOriginalVideoUrl(null); }} />
             ) : activeView === "perf" ? (
-              <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 gap-4">
-                <div className="w-14 h-14 bg-slate-100 border border-slate-200 rounded-2xl flex items-center justify-center">
-                  <span className="text-2xl">🚧</span>
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-bold text-slate-700">Performance Control</p>
-                  <p className="text-xs text-slate-400 mt-1">Not implemented at this time</p>
-                </div>
-              </div>
+              <PerformancePanel
+                onGenerate={handleGenerate}
+                onVideoSelect={(url, orig, left, right) => {
+                  setPreviewVideoUrl(url);
+                  setPreviewOriginalVideoUrl(orig || null);
+                  setPreviewTertiaryVideoUrl(null);
+                  setPreviewLeftLabel(left || "Source Video");
+                  setPreviewRightLabel(right || "Output");
+                }}
+              />
             ) : activeView === "tasks" ? (
               <OperationsPanel
                 operations={operations}
@@ -106,7 +111,7 @@ const AppContent = ({ isAdmin }: { isAdmin: boolean }) => {
              {activeView === "settings" ? (
                <SettingsPanel />
              ) : (
-               <PreviewArea videoUrl={previewVideoUrl} originalVideoUrl={previewOriginalVideoUrl} leftLabel={previewLeftLabel} rightLabel={previewRightLabel} />
+               <PreviewArea videoUrl={previewVideoUrl} originalVideoUrl={previewOriginalVideoUrl} tertiaryVideoUrl={previewTertiaryVideoUrl} leftLabel={previewLeftLabel} centerLabel={previewCenterLabel} rightLabel={previewRightLabel} />
              )}
              <DebugConsole logs={logs} onClear={() => setLogs([])} />
           </div>

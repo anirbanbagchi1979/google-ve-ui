@@ -90,7 +90,7 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
       
       for (const op of runningOps) {
         try {
-          const modelName = op.modelUsed || (op.type === "upscale" ? config.upscaleModel : config.videoGenModel);
+          const modelName = op.modelUsed || (op.type === "upscale" ? config.upscaleModel : (op.type === "perf-estimation" || op.type === "perf-generation") ? "veo-experimental" : config.videoGenModel);
           const endpoint = `https://${config.location}-aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${config.location}/publishers/google/models/${modelName}:fetchPredictOperation`;
 
           const response = await fetch("/api/proxy", {
@@ -116,21 +116,52 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
                 completedAt: Timestamp.now(),
                 result: data.response
               });
-              // Save all LRO outputs to the videos library for reuse.
-              // isUpscaleOutput: true on upscale results → UpscalePanel filters
-              // them out server-side so already-upscaled videos can't be re-upscaled.
-              if (op.type === "upscale" || op.type === "transform") {
-                const outputGcsUri = data.response?.videos?.[0]?.gcsUri;
-                if (outputGcsUri) {
-                  await addDoc(collection(db, "videos"), {
-                    name: op.type === "upscale" ? "Upscale output" : "Transform output",
-                    url: gcsToFirebaseUrl(outputGcsUri),
-                    type: "video/mp4",
-                    isUpscaleOutput: op.type === "upscale",
-                    projectId: op.projectId,
-                    createdAt: Timestamp.now(),
-                  });
-                }
+              // Save LRO outputs to appropriate collections.
+              // The API returns two video entries — prefer the one with mimeType (has .mp4 extension)
+              const videos = data.response?.videos || [];
+              addLog({ type: "FLOW", message: `Videos array (${videos.length} entries)`, data: { videos } });
+              const outputGcsUri: string | undefined =
+                videos.find((v: any) => v.mimeType === "video/mp4")?.gcsUri ||
+                (videos[0]?.gcsUri ? videos[0].gcsUri + ".mp4" : undefined);
+
+              if ((op.type === "upscale" || op.type === "transform" || op.type === "perf-generation") && outputGcsUri) {
+                // Regular video outputs → videos collection
+                const outputUrl = gcsToFirebaseUrl(outputGcsUri);
+                await addDoc(collection(db, "videos"), {
+                  name: op.type === "upscale" ? "Upscale output"
+                    : op.type === "transform" ? "Transform output"
+                    : "Performance output",
+                  url: outputUrl,
+                  type: "video/mp4",
+                  isUpscaleOutput: op.type === "upscale",
+                  projectId: op.projectId,
+                  createdAt: Timestamp.now(),
+                });
+                // Store output URLs on the operation for easy access
+                await updateDoc(doc(db, "operations", op.id), {
+                  outputGcsUri,
+                  outputVideoUrl: outputUrl,
+                });
+              }
+
+              if (op.type === "perf-estimation" && outputGcsUri) {
+                // Mesh outputs → perfMeshes collection only (NOT videos)
+                const outputUrl = gcsToFirebaseUrl(outputGcsUri);
+                const meshDoc = await addDoc(collection(db, "perfMeshes"), {
+                  name: `Mesh from ${op.inputVideoUrl ? "uploaded video" : "source"}`,
+                  url: outputUrl,
+                  gcsUri: outputGcsUri,
+                  sourceVideoUrl: op.inputVideoUrl || null,
+                  sourceVideoGcsUri: op.inputGcsUri || null,
+                  sourceOperationId: op.id,
+                  projectId: op.projectId,
+                  createdAt: Timestamp.now(),
+                });
+                await updateDoc(doc(db, "operations", op.id), {
+                  outputGcsUri,
+                  outputVideoUrl: outputUrl,
+                  perfMeshDocId: meshDoc.id,
+                });
               }
               addLog({ type: "FLOW", message: `Operation Complete: ${op.id}`, operationId: op.name });
             }
@@ -139,7 +170,7 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
           console.error("Polling error:", error);
         }
       }
-    }, 10000);
+    }, (Number(config.pollIntervalSeconds) || 10) * 1000);
 
     return () => clearInterval(pollInterval);
   }, [operations, config]);
@@ -170,10 +201,17 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
       videoTransformStrength: params.experiments?.videoTransformStrength ?? null,
       numDiffusionSteps: params.experiments?.numDiffusionSteps ?? null,
       inputFileSize: (payload._inputFileSize as number | null) ?? null,
+      // Performance-specific metadata
+      inputVideoUrl: payload._inputVideoUrl || null,
+      meshGcsUri: params.experiments?.perfMeshGcsUri || null,
+      meshVideoUrl: payload._meshVideoUrl || null,
+      characterImageGcsUri: instance.referenceImages?.[0]?.image?.gcsUri || null,
+      characterImageUrl: payload._characterImageUrl || null,
+      sourceVideoUrl: payload._sourceVideoUrl || null,
     };
 
     try {
-      const { _model: metaModel, _inputFileSize: inputFileSize, ...apiPayload } = payload;
+      const { _model: metaModel, _inputFileSize: inputFileSize, _operationType: _opType, _inputVideoUrl: _ivUrl, _meshVideoUrl: _mvUrl, _characterImageUrl: _ciUrl, _sourceVideoUrl: _svUrl, ...apiPayload } = payload;
       const experimentModel = params.experiments?.modelName;
       const modelUsed = experimentModel === 'veo3p1_upscale'
         ? config.upscaleModel
@@ -188,7 +226,8 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
 
       const data = await response.json();
 
-      const operationType = params.task || (metaModel === "veo-experimental" ? "transform" : "generation");
+      const explicitType = (payload as any)._operationType;
+      const operationType = explicitType || params.task || (metaModel === "veo-experimental" ? "transform" : "generation");
 
       if (isLongRunning && data.name) {
         await addDoc(collection(db, "operations"), {

@@ -49,6 +49,85 @@ export const buildGenerationPayload = (
 };
 
 /**
+ * Build a Vertex AI performance estimation (blue mesh extraction) payload.
+ */
+export const buildPerfEstimationPayload = (
+  videoGcsUri: string,
+  config: AppConfig,
+  seed: number = 777
+): object => {
+  const timestamp = new Date()
+    .toISOString()
+    .replace(/[:.]/g, "-")
+    .slice(0, 19)
+    .replace("T", "_");
+  const outputUri = `gs://${config.gcsBucket}/bluemeshes/bluemesh_${timestamp}`;
+
+  return {
+    _model: "veo-experimental",
+    _operationType: "perf-estimation",
+    instances: [
+      {
+        video: { gcsUri: videoGcsUri, mimeType: "video/mp4" },
+      },
+    ],
+    parameters: {
+      seed,
+      storageUri: outputUri,
+      experiments: { modelName: "veo-exp-perf-estimation" },
+    },
+  };
+};
+
+/**
+ * Build a Vertex AI performance generation (character performance) payload.
+ */
+export const buildPerfGenerationPayload = (
+  meshGcsUri: string,
+  imageGcsUri: string,
+  imageMimeType: string,
+  config: AppConfig,
+  options: {
+    prompt?: string;
+    seed?: number;
+    compressionQuality?: "optimized" | "lossless";
+  } = {}
+): object => {
+  const { prompt, seed = 78, compressionQuality = "optimized" } = options;
+  const timestamp = new Date()
+    .toISOString()
+    .replace(/[:.]/g, "-")
+    .slice(0, 19)
+    .replace("T", "_");
+  const outputUri = `gs://${config.gcsBucket}/${config.outputFolder}/video_${timestamp}`;
+
+  return {
+    _model: "veo-experimental",
+    _operationType: "perf-generation",
+    instances: [
+      {
+        ...(prompt ? { prompt } : {}),
+        referenceImages: [
+          {
+            image: { gcsUri: imageGcsUri, mimeType: imageMimeType },
+            referenceType: "ASSET",
+          },
+        ],
+      },
+    ],
+    parameters: {
+      seed,
+      compressionQuality,
+      storageUri: outputUri,
+      experiments: {
+        modelName: "veo-exp-perf-generation",
+        perfMeshGcsUri: meshGcsUri,
+      },
+    },
+  };
+};
+
+/**
  * Build a Vertex AI upscale payload.
  */
 export const buildUpscalePayload = (gcsUri: string, config: AppConfig): object => {

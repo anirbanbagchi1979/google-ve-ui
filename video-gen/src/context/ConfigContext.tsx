@@ -9,6 +9,7 @@ export interface AppConfig {
   outputFolder: string;
   videoGenModel: string;
   upscaleModel: string;
+  pollIntervalSeconds: number;
   // Backbone Infra
   firebaseApiKey: string;
   firebaseAuthDomain: string;
@@ -32,6 +33,7 @@ const DEFAULT_CONFIG: AppConfig = {
   outputFolder: "outputs",
   videoGenModel: "veo-001",
   upscaleModel: "veo-experimental",
+  pollIntervalSeconds: 10,
   // Backbone Defaults
   firebaseApiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "",
   firebaseAuthDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "",

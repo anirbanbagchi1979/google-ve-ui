@@ -18,16 +18,20 @@ import {
 interface PreviewAreaProps {
   videoUrl?: string | null;
   originalVideoUrl?: string | null;
+  tertiaryVideoUrl?: string | null;
   leftLabel?: string;
+  centerLabel?: string;
   rightLabel?: string;
 }
 
-const PreviewArea = ({ videoUrl, originalVideoUrl, leftLabel = "Input Video", rightLabel = "Output" }: PreviewAreaProps) => {
+const PreviewArea = ({ videoUrl, originalVideoUrl, tertiaryVideoUrl, leftLabel = "Input Video", centerLabel = "Blue Mesh", rightLabel = "Output" }: PreviewAreaProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const origVideoRef = useRef<HTMLVideoElement>(null);
+  const tertiaryVideoRef = useRef<HTMLVideoElement>(null);
+  const [viewMode, setViewMode] = useState<"2up" | "3up">("3up");
 
   // Zoom & Pan State
   const [scale, setScale] = useState(1);
@@ -50,9 +54,11 @@ const PreviewArea = ({ videoUrl, originalVideoUrl, leftLabel = "Input Video", ri
     if (isPlaying) {
       if (videoRef.current) videoRef.current.pause();
       if (origVideoRef.current) origVideoRef.current.pause();
+      if (tertiaryVideoRef.current) tertiaryVideoRef.current.pause();
     } else {
       if (videoRef.current) videoRef.current.play();
       if (origVideoRef.current) origVideoRef.current.play();
+      if (tertiaryVideoRef.current) tertiaryVideoRef.current.play();
     }
     setIsPlaying(!isPlaying);
   };
@@ -67,8 +73,9 @@ const PreviewArea = ({ videoUrl, originalVideoUrl, leftLabel = "Input Video", ri
 
   // Sync videos if side-by-side
   useEffect(() => {
-    if (videoRef.current && origVideoRef.current) {
-      origVideoRef.current.currentTime = videoRef.current.currentTime;
+    if (videoRef.current) {
+      if (origVideoRef.current) origVideoRef.current.currentTime = videoRef.current.currentTime;
+      if (tertiaryVideoRef.current) tertiaryVideoRef.current.currentTime = videoRef.current.currentTime;
     }
   }, [isPlaying]);
 
@@ -120,7 +127,9 @@ const PreviewArea = ({ videoUrl, originalVideoUrl, leftLabel = "Input Video", ri
     );
   }
 
-  const isSplit = !!(videoUrl && originalVideoUrl && showOriginal);
+  const hasThreeVideos = !!(videoUrl && originalVideoUrl && tertiaryVideoUrl);
+  const isThreeUp = hasThreeVideos && viewMode === "3up" && showOriginal;
+  const isSplit = isThreeUp || !!(videoUrl && originalVideoUrl && showOriginal);
 
   const zoomStyle = {
     transform: `scale(${scale}) translate(${position.x}px, ${position.y}px)`,
@@ -138,6 +147,11 @@ const PreviewArea = ({ videoUrl, originalVideoUrl, leftLabel = "Input Video", ri
             <div className="flex-1 text-center">
               <span className="px-4 py-2 bg-black/50 backdrop-blur-md rounded-lg text-white/50 font-bold uppercase tracking-widest text-sm border border-white/10 drop-shadow-md">{leftLabel}</span>
             </div>
+            {isThreeUp && (
+              <div className="flex-1 text-center">
+                <span className="px-4 py-2 bg-purple-500/20 backdrop-blur-md rounded-lg text-purple-400 font-bold uppercase tracking-widest text-sm border border-purple-500/30 drop-shadow-md">{centerLabel}</span>
+              </div>
+            )}
             <div className="flex-1 text-center">
               <span className="px-4 py-2 bg-blue-500/20 backdrop-blur-md rounded-lg text-blue-400 font-bold uppercase tracking-widest text-sm border border-blue-500/30 drop-shadow-md">{rightLabel}</span>
             </div>
@@ -156,7 +170,7 @@ const PreviewArea = ({ videoUrl, originalVideoUrl, leftLabel = "Input Video", ri
 
         {/* Video Player(s) Container */}
         <div className={isSplit ? "w-full h-full flex divide-x divide-slate-800" : "w-full h-full"}>
-          
+
           {isSplit && (
             <div className="flex-1 h-full relative overflow-hidden pointer-events-none">
               <video
@@ -166,6 +180,21 @@ const PreviewArea = ({ videoUrl, originalVideoUrl, leftLabel = "Input Video", ri
                 style={zoomStyle}
                 loop
                 muted={isMuted}
+                playsInline
+                preload="auto"
+              />
+            </div>
+          )}
+
+          {isThreeUp && (
+            <div className="flex-1 h-full relative overflow-hidden pointer-events-none">
+              <video
+                ref={tertiaryVideoRef}
+                src={tertiaryVideoUrl!}
+                className="w-full h-full object-contain"
+                style={zoomStyle}
+                loop
+                muted
                 playsInline
                 preload="auto"
               />
@@ -191,6 +220,7 @@ const PreviewArea = ({ videoUrl, originalVideoUrl, leftLabel = "Input Video", ri
                 e.currentTarget.play();
                 setIsPlaying(true);
                 if (origVideoRef.current) origVideoRef.current.play();
+                if (tertiaryVideoRef.current) tertiaryVideoRef.current.play();
               }}
             />
           </div>
@@ -250,6 +280,28 @@ const PreviewArea = ({ videoUrl, originalVideoUrl, leftLabel = "Input Video", ri
             </button>
           </div>
         </div>
+
+        {/* 2-up / 3-up toggle (only when 3 videos available) */}
+        {hasThreeVideos && showOriginal && (
+          <div className="absolute bottom-6 right-8 flex items-center gap-1 bg-black/60 backdrop-blur-xl rounded-lg border border-white/10 p-1 z-30">
+            <button
+              onClick={() => setViewMode("2up")}
+              className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all ${
+                viewMode === "2up" ? "bg-white/20 text-white" : "text-white/40 hover:text-white/70"
+              }`}
+            >
+              2-up
+            </button>
+            <button
+              onClick={() => setViewMode("3up")}
+              className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all ${
+                viewMode === "3up" ? "bg-white/20 text-white" : "text-white/40 hover:text-white/70"
+              }`}
+            >
+              3-up
+            </button>
+          </div>
+        )}
 
         {/* Zoom Instructions */}
         {scale === 1 && (

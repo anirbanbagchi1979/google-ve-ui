@@ -171,12 +171,24 @@ const SettingsPanel = () => {
              </div>
              <div className="space-y-2">
                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Upscale Model</label>
-               <input 
-                 type="text" 
+               <input
+                 type="text"
                  value={localConfig.upscaleModel}
                  onChange={(e) => handleChange("upscaleModel", e.target.value)}
                  className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-3 text-[13px] font-medium text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none"
                  placeholder="veo3p1_upscale"
+               />
+             </div>
+             <div className="space-y-2">
+               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Poll Interval (seconds)</label>
+               <input
+                 type="number"
+                 min="5"
+                 max="120"
+                 value={localConfig.pollIntervalSeconds ?? 10}
+                 onChange={(e) => handleChange("pollIntervalSeconds", String(Math.max(5, Math.min(120, parseInt(e.target.value) || 10))))}
+                 className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-3 text-[13px] font-medium text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none"
+                 placeholder="10"
                />
              </div>
           </div>
