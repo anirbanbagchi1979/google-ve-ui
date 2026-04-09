@@ -14,13 +14,24 @@ import {
   where,
   QueryDocumentSnapshot,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, storage } from "@/lib/firebase";
+import { ref as storageRef, getDownloadURL } from "firebase/storage";
 import { gcsToFirebaseUrl } from "@/utils/gcs";
 import { useConfig } from "@/context/ConfigContext";
 import { useAuth } from "@/context/AuthContext";
 import { useProject } from "@/context/ProjectContext";
 
 const OPS_PAGE_SIZE = 10;
+
+/** Convert a gs:// URI to an authenticated Firebase download URL */
+async function getAuthenticatedUrl(gcsUri: string): Promise<string> {
+  // Extract the path after the bucket name
+  const withoutScheme = gcsUri.replace("gs://", "");
+  const slashIdx = withoutScheme.indexOf("/");
+  const path = withoutScheme.substring(slashIdx + 1);
+  const fileRef = storageRef(storage, path);
+  return getDownloadURL(fileRef);
+}
 
 export function useGenerationFlow(setActiveView: (view: string) => void) {
   const [operations, setOperations] = useState<any[]>([]);
@@ -126,7 +137,8 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
 
               if ((op.type === "upscale" || op.type === "transform" || op.type === "perf-generation") && outputGcsUri) {
                 // Regular video outputs → videos collection
-                const outputUrl = gcsToFirebaseUrl(outputGcsUri);
+                let outputUrl: string;
+                try { outputUrl = await getAuthenticatedUrl(outputGcsUri); } catch { outputUrl = gcsToFirebaseUrl(outputGcsUri); }
                 await addDoc(collection(db, "videos"), {
                   name: op.type === "upscale" ? "Upscale output"
                     : op.type === "transform" ? "Transform output"
@@ -146,7 +158,8 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
 
               if (op.type === "perf-estimation" && outputGcsUri) {
                 // Mesh outputs → perfMeshes collection only (NOT videos)
-                const outputUrl = gcsToFirebaseUrl(outputGcsUri);
+                let outputUrl: string;
+                try { outputUrl = await getAuthenticatedUrl(outputGcsUri); } catch { outputUrl = gcsToFirebaseUrl(outputGcsUri); }
                 const meshDoc = await addDoc(collection(db, "perfMeshes"), {
                   name: `Mesh from ${op.inputVideoUrl ? "uploaded video" : "source"}`,
                   url: outputUrl,

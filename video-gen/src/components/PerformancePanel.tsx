@@ -56,7 +56,7 @@ const PerformancePanel = ({ onGenerate, onVideoSelect }: PerformancePanelProps) 
 
   // Step 1 — Use Mesh
   const meshFileInputRef = useRef<HTMLInputElement>(null);
-  const { meshes, loading: loadingMeshes, fetchMeshes } = usePerfMeshLibrary(currentProjectId);
+  const { meshes, loading: loadingMeshes, loadingMore: loadingMoreMeshes, hasMore: hasMoreMeshes, fetchMeshes, loadMoreMeshes } = usePerfMeshLibrary(currentProjectId);
   const [isUploadingMesh, setIsUploadingMesh] = useState(false);
   const [meshUploadProgress, setMeshUploadProgress] = useState(0);
   const [meshUploadError, setMeshUploadError] = useState<string | null>(null);
@@ -158,6 +158,7 @@ const PerformancePanel = ({ onGenerate, onVideoSelect }: PerformancePanelProps) 
           setSelectedMeshGcsUri(gcsUri);
           setSelectedMeshUrl(url);
           setSelectedMeshSourceVideoUrl(null);
+          onVideoSelect?.(url, null, "Blue Mesh", "");
           await fetchMeshes();
         } catch (e) { console.error(e); }
         finally {
@@ -458,9 +459,17 @@ const PerformancePanel = ({ onGenerate, onVideoSelect }: PerformancePanelProps) 
 
                   {selectedMeshUrl ? (
                     <div className="relative aspect-video rounded-xl overflow-hidden border-2 border-blue-300 bg-black">
-                      <video src={selectedMeshUrl + "#t=0.5"} className="w-full h-full object-cover" preload="metadata" muted playsInline />
+                      <video
+                        src={selectedMeshUrl}
+                        className="w-full h-full object-cover"
+                        preload="auto"
+                        muted
+                        playsInline
+                        autoPlay
+                        loop
+                      />
                       <button
-                        onClick={() => { setSelectedMeshGcsUri(null); setSelectedMeshUrl(null); setSelectedMeshSourceVideoUrl(null); }}
+                        onClick={() => { setSelectedMeshGcsUri(null); setSelectedMeshUrl(null); setSelectedMeshSourceVideoUrl(null); onVideoSelect?.(null); }}
                         className="absolute top-2 right-2 p-1 bg-black/50 rounded-full text-white hover:bg-black/70 transition-colors"
                       >
                         <X size={12} />
@@ -522,6 +531,7 @@ const PerformancePanel = ({ onGenerate, onVideoSelect }: PerformancePanelProps) 
                               setSelectedMeshSourceVideoUrl(mesh.sourceVideoUrl || null);
                               const dimSource = mesh.sourceVideoUrl || mesh.url;
                               try { setVideoDimensions(await getVideoDimensions(dimSource)); } catch { /* fallback */ }
+                              onVideoSelect?.(mesh.url, mesh.sourceVideoUrl || null, "Source Video", "Blue Mesh");
                             }}
                             className="flex items-stretch gap-0 rounded-xl overflow-hidden border-2 border-blue-200 hover:border-blue-400 cursor-pointer transition-all group active:scale-[0.98] bg-black"
                             title={mesh.name}
@@ -569,6 +579,7 @@ const PerformancePanel = ({ onGenerate, onVideoSelect }: PerformancePanelProps) 
                         ))}
                       </div>
                     )}
+                    {hasMoreMeshes && <LoadMoreButton loading={loadingMoreMeshes} onClick={loadMoreMeshes} />}
                     <button
                       onClick={() => meshFileInputRef.current?.click()}
                       className="w-full py-2 border border-dashed border-blue-300 rounded-lg text-[11px] font-semibold text-blue-500 hover:bg-blue-50 transition-colors flex items-center justify-center gap-1.5"
