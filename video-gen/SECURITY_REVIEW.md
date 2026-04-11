@@ -19,6 +19,7 @@
 | 9 | No security headers | LOW | ❌ Open | — |
 | 10 | Firebase config exposed client-side | INFO | ❌ Open | — |
 | 11 | Firebase Storage rules fully open (no auth) | HIGH | ✅ Fixed | 2026-04-07 |
+| 12 | `ssrvexpuibb` `.run.app` URL publicly reachable (bypasses Firebase Hosting) | LOW | ⚠️ Accepted | 2026-04-07 |
 
 ---
 
@@ -51,6 +52,22 @@ const ALLOWED_ENDPOINT_PREFIXES = [
   "https://asia-east1-aiplatform.googleapis.com/",
 ];
 ```
+
+---
+
+## LOW / INFORMATIONAL
+
+### 12. ⚠️ `ssrvexpuibb` `.run.app` URL publicly reachable
+
+Firebase Web Frameworks deploys the Next.js app as a Cloud Run service (`ssrvexpuibb`) with `--allow-unauthenticated` because Firebase Hosting routes traffic to it via its `.run.app` URL. This means the Cloud Run URL is publicly reachable, bypassing Firebase Hosting and its CDN.
+
+**What was attempted:** Disabling the default Cloud Run URL via `gcloud run services update ssrvexpuibb --no-default-url`. This breaks the app — Firebase Hosting itself depends on the `.run.app` URL to proxy traffic. Not viable for Firebase-managed Cloud Run.
+
+**Next.js middleware host-header check** was also considered (reject requests whose `Host` header isn't the Firebase domain) but not implemented — preference to avoid app-layer workarounds for an infra-layer problem.
+
+**Accepted mitigation:** All API routes require a valid Firebase ID token from an allowlisted user. `/api/proxy` is a no-op without auth. `vef-proxy` is IAM-gated to the compute SA regardless of how traffic reaches `ssrvexpuibb`. The exposure is unauthenticated SSR rendering cost, not data or Vertex AI quota abuse.
+
+**If compute cost from direct hits becomes a concern:** attach a Google Cloud Armor security policy to reject requests whose `Host` header does not match `vexp-ui-bb.web.app` or `vexp-ui-bb.firebaseapp.com`.
 
 ---
 

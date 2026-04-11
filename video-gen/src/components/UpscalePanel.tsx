@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { storage, db } from "@/lib/firebase";
 import { ref, listAll, getDownloadURL, uploadBytesResumable } from "firebase/storage";
-import { collection, addDoc, serverTimestamp, where } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { useConfig } from "@/context/ConfigContext";
 import { useProject } from "@/context/ProjectContext";
 import { formatBytes, detectAspectRatioFromFile, validateVideoConstraints } from "@/utils/time";
@@ -36,10 +36,7 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Video library
-  const { videos, setVideos, loadingAssets, loadingMore, hasMore, fetchVideos, loadMoreVideos } = useVideoLibrary(
-    currentProjectId,
-    [where("isUpscaleOutput", "==", false)]
-  );
+  const { videos, setVideos, loadingAssets, loadingMore, hasMore, fetchVideos, loadMoreVideos } = useVideoLibrary(currentProjectId);
 
   // Selection
   const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
