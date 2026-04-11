@@ -21,26 +21,8 @@ import { PanelHeader } from "@/components/ui/PanelHeader";
 
 import { useConfig } from "@/context/ConfigContext";
 import { useAuth } from "@/context/AuthContext";
-import { formatBytes } from "@/utils/time";
-
-interface Operation {
-  id: string;
-  name: string;
-  status: "RUNNING" | "DONE" | "ERROR";
-  type: string;
-  userEmail?: string;
-  createdAt: any;
-  updatedAt?: any;
-  completedAt?: any;
-  result?: any;
-  payload?: any;
-  originalGcsUri?: string;
-  maskVideoGcsUri?: string;
-  error?: {
-    code: number;
-    message: string;
-  };
-}
+import { formatBytes, getDurationString } from "@/utils/time";
+import type { Operation } from "@/types";
 
 interface OperationsPanelProps {
   operations: Operation[];
@@ -92,17 +74,17 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
 
     const outputUris = operations
       .filter(op => op.status === "DONE" && outputSizes[op.id] === undefined)
-      .map(op => ({ op, gcsUri: (op as any).outputGcsUri || op.result?.videos?.find((v: any) => v.mimeType === "video/mp4")?.gcsUri || op.result?.videos?.[0]?.gcsUri || op.result?.video?.gcsUri }))
+      .map(op => ({ op, gcsUri: op.outputGcsUri || op.result?.videos?.find((v: any) => v.mimeType === "video/mp4")?.gcsUri || op.result?.videos?.[0]?.gcsUri || op.result?.video?.gcsUri }))
       .filter((x): x is { op: Operation; gcsUri: string } => !!x.gcsUri);
 
     const allUris: string[] = [
       ...operations.flatMap(op => [
         op.result?.videos?.[0]?.gcsUri,
         op.result?.video?.gcsUri,
-        (op as any).outputGcsUri,
+        op.outputGcsUri,
         op.originalGcsUri,
-        (op as any).inputGcsUri,
-        op.payload?.instances?.[0]?.video?.gcsUri,
+        op.inputGcsUri,
+        (op.payload?.instances as any)?.[0]?.video?.gcsUri,
       ]),
       ...Object.values(checkResults).flatMap((r: any) => [r?.response?.videos?.[0]?.gcsUri]),
     ].filter((u): u is string => !!u && !resolvedUris.current.has(u));
@@ -115,7 +97,7 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
 
       // Fetch metadata for output URIs (gets size + downloadTokens in one call)
       for (const { op, gcsUri } of outputUris) {
-        const { metaUrl, bucket, encodedPath } = gcsToMetaUrl(gcsUri);
+        const { metaUrl } = gcsToMetaUrl(gcsUri);
         try {
           const r = await fetch(metaUrl, { headers });
           const data = await r.json();
@@ -162,30 +144,10 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
     return () => clearInterval(timer);
   }, []);
 
-  const getDurationString = (op: Operation) => {
-    if (!op.createdAt) return null;
-    const start = op.createdAt.seconds ? op.createdAt.seconds * 1000 : new Date(op.createdAt).getTime();
-    let end;
-    
-    if (op.completedAt) {
-      end = op.completedAt.seconds ? op.completedAt.seconds * 1000 : new Date(op.completedAt).getTime();
-    } else if (op.status === "DONE" || op.status === "ERROR") {
-      end = op.updatedAt?.seconds ? op.updatedAt.seconds * 1000 : new Date(op.updatedAt || now).getTime();
-    } else {
-      end = now;
-    }
-
-    const diffSeconds = Math.max(0, Math.floor((end - start) / 1000));
-    if (diffSeconds < 60) return `${diffSeconds}s`;
-    const m = Math.floor(diffSeconds / 60);
-    const s = diffSeconds % 60;
-    return `${m}m ${s}s`;
-  };
-
   // Extract the actual output GCS URI — prefer the corrected outputGcsUri field
   // (which picks the .mp4 entry), then fall back to result.videos
   const getOutputGcsUri = (op: Operation): string | null => {
-    return (op as any).outputGcsUri || op.result?.videos?.find((v: any) => v.mimeType === "video/mp4")?.gcsUri || op.result?.videos?.[0]?.gcsUri || op.result?.video?.gcsUri || null;
+    return op.outputGcsUri || op.result?.videos?.find((v: any) => v.mimeType === "video/mp4")?.gcsUri || op.result?.videos?.[0]?.gcsUri || op.result?.video?.gcsUri || null;
   };
 
 
@@ -193,7 +155,7 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
     setCheckingIds(prev => new Set(prev).add(op.id));
     
     // Vertex AI Endpoint for deep status check
-    const modelName = (op as any).modelUsed || (op.type === 'upscale' ? config.upscaleModel : config.videoGenModel);
+    const modelName = op.modelUsed || (op.type === 'upscale' ? config.upscaleModel : config.videoGenModel);
     const endpoint = `https://${config.location}-aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${config.location}/publishers/google/models/${modelName}:fetchPredictOperation`;
     
     const payload = {
@@ -259,7 +221,7 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
     if (filterStatus !== "all" && op.status !== filterStatus) return false;
     if (filterUser !== "all" && op.userEmail !== filterUser) return false;
     if (filterDate !== "all" && op.createdAt) {
-      const ts = op.createdAt.seconds ? op.createdAt.seconds * 1000 : new Date(op.createdAt).getTime();
+      const ts = op.createdAt.toMillis();
       const diffMs = now - ts;
       if (filterDate === "today" && diffMs > 86_400_000) return false;
       if (filterDate === "7d" && diffMs > 7 * 86_400_000) return false;
@@ -402,10 +364,10 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
             <div className="p-3 space-y-2">
               {filteredOps.map((op) => {
                 const gcsUri = getOutputGcsUri(op);
-                const fallbackUri = op.payload?.parameters?.storageUri;
+                const fallbackUri = (op.payload?.parameters as Record<string, unknown>)?.storageUri as string | undefined;
                 const displayUri = gcsUri || fallbackUri || null;
                 const firebaseUrl = gcsUri ? (downloadUrls[gcsUri] ?? null) : null;
-                const duration = getDurationString(op);
+                const duration = getDurationString(op, now);
                 const createdAtDate = op.createdAt?.toDate?.()?.toLocaleString?.() ?? null;
 
                 const borderColor =
@@ -453,18 +415,18 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
                       {/* Param chips */}
                       {(() => {
                         const chips: React.ReactNode[] = [];
-                        if ((op as any).resolution)
-                          chips.push(<span key="res" className={chipBlue}>{(op as any).resolution}</span>);
-                        if ((op as any).compressionQuality)
-                          chips.push(<span key="cq" className={chipBlue}>{(op as any).compressionQuality.replace(/_/g, " ")}</span>);
-                        if ((op as any).videoTransformStrength != null)
-                          chips.push(<span key="str" className={chipBlue}>strength {Number((op as any).videoTransformStrength).toFixed(2)}</span>);
-                        if ((op as any).numDiffusionSteps != null)
-                          chips.push(<span key="steps" className={chipBlue}>{(op as any).numDiffusionSteps} steps</span>);
-                        if ((op as any).inputFileSize != null)
-                          chips.push(<span key="ifs" className={chipBase}>{formatBytes((op as any).inputFileSize)}</span>);
-                        if ((op as any).prompt)
-                          chips.push(<span key="prompt" className={`${chipBase} italic truncate w-full`}>"{(op as any).prompt}"</span>);
+                        if (op.resolution)
+                          chips.push(<span key="res" className={chipBlue}>{op.resolution}</span>);
+                        if (op.compressionQuality)
+                          chips.push(<span key="cq" className={chipBlue}>{op.compressionQuality.replace(/_/g, " ")}</span>);
+                        if (op.videoTransformStrength != null)
+                          chips.push(<span key="str" className={chipBlue}>strength {Number(op.videoTransformStrength).toFixed(2)}</span>);
+                        if (op.numDiffusionSteps != null)
+                          chips.push(<span key="steps" className={chipBlue}>{op.numDiffusionSteps} steps</span>);
+                        if (op.inputFileSize != null)
+                          chips.push(<span key="ifs" className={chipBase}>{formatBytes(op.inputFileSize)}</span>);
+                        if (op.prompt)
+                          chips.push(<span key="prompt" className={`${chipBase} italic truncate w-full`}>"{op.prompt}"</span>);
                         return chips.length > 0 ? (
                           <div className="flex flex-wrap gap-1">{chips}</div>
                         ) : null;
@@ -478,7 +440,7 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
                               className="relative w-32 aspect-video shrink-0 rounded-md overflow-hidden bg-black cursor-pointer group/thumb"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const origGcs = op.originalGcsUri || (op as any).inputGcsUri || op.payload?.instances?.[0]?.video?.gcsUri;
+                                const origGcs = op.originalGcsUri || op.inputGcsUri || (op.payload?.instances as any)?.[0]?.video?.gcsUri;
                                 const showSplit = (op.type === "upscale" || op.type === "transform" || op.type === "perf-estimation" || op.type === "perf-generation") && !!origGcs;
                                 const left = op.type === "perf-estimation" ? "Source Video"
                                   : op.type === "perf-generation" ? "Source Video"
@@ -552,7 +514,7 @@ const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog,
                                     <div
                                       className="relative w-32 aspect-video shrink-0 rounded-md overflow-hidden bg-black cursor-pointer group/thumb"
                                       onClick={() => {
-                                        const origGcs = op.originalGcsUri || (op as any).inputGcsUri || op.payload?.instances?.[0]?.video?.gcsUri;
+                                        const origGcs = op.originalGcsUri || op.inputGcsUri || (op.payload?.instances as any)?.[0]?.video?.gcsUri;
                                         const showSplit = (op.type === "upscale" || op.type === "transform" || op.type === "perf-estimation" || op.type === "perf-generation") && !!origGcs;
                                         const left = op.type === "perf-estimation" ? "Source Video"
                                           : op.type === "perf-generation" ? "Source Video"

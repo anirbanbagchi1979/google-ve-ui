@@ -1,9 +1,10 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { collection, addDoc, query, onSnapshot, serverTimestamp, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "./AuthContext";
+import { COLLECTIONS, STORAGE_KEYS } from "@/constants";
 
 export interface Project {
   id: string;
@@ -34,13 +35,17 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
   const { user } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  const currentProjectIdRef = useRef<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Initialize selected project from localStorage
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("veo_current_project_id");
-      if (saved) setCurrentProjectId(saved);
+      const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_PROJECT);
+      if (saved) {
+        setCurrentProjectId(saved);
+        currentProjectIdRef.current = saved;
+      }
     }
   }, []);
 
@@ -53,7 +58,7 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
     }
 
     const q = query(
-      collection(db, "projects"),
+      collection(db, COLLECTIONS.PROJECTS),
       orderBy("createdAt", "desc")
     );
 
@@ -66,9 +71,10 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
       
       // Auto-select logic
       if (prjs.length > 0) {
-        if (!currentProjectId || !prjs.find(p => p.id === currentProjectId)) {
+        if (!currentProjectIdRef.current || !prjs.find(p => p.id === currentProjectIdRef.current)) {
             setCurrentProjectId(prjs[0].id);
-            localStorage.setItem("veo_current_project_id", prjs[0].id);
+            currentProjectIdRef.current = prjs[0].id;
+            localStorage.setItem(STORAGE_KEYS.CURRENT_PROJECT, prjs[0].id);
         }
       } else if (prjs.length === 0 && !loading) {
           // You could automatically create a default project here if desired
@@ -81,12 +87,13 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
     });
 
     return () => unsubscribe();
-  }, [user, currentProjectId, loading]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const createProject = async (name: string) => {
     if (!user?.email) return null;
     try {
-      const docRef = await addDoc(collection(db, "projects"), {
+      const docRef = await addDoc(collection(db, COLLECTIONS.PROJECTS), {
         name,
         userEmail: user.email,
         createdAt: serverTimestamp(),
@@ -100,8 +107,9 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
   };
 
   const switchProject = (projectId: string) => {
+    currentProjectIdRef.current = projectId;
     setCurrentProjectId(projectId);
-    localStorage.setItem("veo_current_project_id", projectId);
+    localStorage.setItem(STORAGE_KEYS.CURRENT_PROJECT, projectId);
   };
 
   return (

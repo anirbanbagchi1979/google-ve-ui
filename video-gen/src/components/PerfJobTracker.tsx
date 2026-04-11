@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Loader2,
   CheckCircle2,
@@ -11,29 +11,11 @@ import {
 } from "lucide-react";
 import { collection, query, where, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { COLLECTIONS, PAGE_SIZES } from "@/constants";
 import { useProject } from "@/context/ProjectContext";
-import { gcsToFirebaseUrl } from "@/utils/gcs";
+import type { Operation } from "@/types";
 
-interface PerfOperation {
-  id: string;
-  name: string;
-  status: "RUNNING" | "DONE" | "ERROR";
-  type: "perf-estimation" | "perf-generation";
-  createdAt: any;
-  completedAt?: any;
-  inputVideoUrl?: string;
-  outputVideoUrl?: string;
-  outputGcsUri?: string;
-  meshVideoUrl?: string;
-  meshGcsUri?: string;
-  characterImageUrl?: string;
-  sourceVideoUrl?: string;
-  sourceEstimationOpId?: string;
-  perfMeshDocId?: string;
-  error?: { code: number; message: string };
-  payload?: any;
-  inputGcsUri?: string;
-}
+type PerfOperation = Operation;
 
 interface PerfJobTrackerProps {
   onMeshReady?: (meshGcsUri: string, meshUrl: string, sourceVideoUrl?: string, operationId?: string) => void;
@@ -59,11 +41,11 @@ const PerfJobTracker = ({
       return;
     }
     const q = query(
-      collection(db, "operations"),
+      collection(db, COLLECTIONS.OPERATIONS),
       where("projectId", "==", currentProjectId),
       where("type", "in", ["perf-estimation", "perf-generation"]),
       orderBy("createdAt", "desc"),
-      limit(5)
+      limit(PAGE_SIZES.PERF_TRACKER)
     );
     const unsub = onSnapshot(q, (snap) => {
       setPerfOps(snap.docs.map(d => ({ id: d.id, ...d.data() } as PerfOperation)));

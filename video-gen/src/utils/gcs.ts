@@ -18,7 +18,8 @@ export const getGcsUri = (url: string | null): string => {
       console.error("Error parsing Firebase URL", e);
     }
   }
-  return `gs://video-gen-assets/${url.split("/").pop()?.split("?")[0]}`;
+  console.warn("[getGcsUri] Unrecognized URL format, cannot derive GCS URI:", url);
+  return "";
 };
 
 /**

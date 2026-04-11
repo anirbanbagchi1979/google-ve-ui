@@ -20,8 +20,10 @@ import { gcsToFirebaseUrl } from "@/utils/gcs";
 import { useConfig } from "@/context/ConfigContext";
 import { useAuth } from "@/context/AuthContext";
 import { useProject } from "@/context/ProjectContext";
+import { COLLECTIONS, PAGE_SIZES, DEFAULTS, MODELS } from "@/constants";
+import type { Operation, Log, GenerationPayload } from "@/types";
 
-const OPS_PAGE_SIZE = 10;
+const OPS_PAGE_SIZE = PAGE_SIZES.OPERATIONS;
 
 /** Convert a gs:// URI to an authenticated Firebase download URL */
 async function getAuthenticatedUrl(gcsUri: string): Promise<string> {
@@ -34,21 +36,24 @@ async function getAuthenticatedUrl(gcsUri: string): Promise<string> {
 }
 
 export function useGenerationFlow(setActiveView: (view: string) => void) {
-  const [operations, setOperations] = useState<any[]>([]);
+  const [operations, setOperations] = useState<Operation[]>([]);
   const [hasMoreOps, setHasMoreOps] = useState(false);
   const [loadingMoreOps, setLoadingMoreOps] = useState(false);
   const lastOpDocRef = useRef<QueryDocumentSnapshot | null>(null);
-  const [logs, setLogs] = useState<any[]>([]);
+  const [logs, setLogs] = useState<Log[]>([]);
   const { config } = useConfig();
   const { user } = useAuth();
   const { currentProjectId } = useProject();
 
-  const addLog = (log: any) => {
+  const operationsRef = useRef<Operation[]>([]);
+  const configRef = useRef(config);
+
+  const addLog = (log: Omit<Log, "id" | "timestamp">) => {
     setLogs(prev => [{
       id: Math.random().toString(36).substr(2, 9),
       timestamp: new Date().toLocaleTimeString(),
       ...log
-    }, ...prev].slice(0, 50));
+    }, ...prev].slice(0, PAGE_SIZES.MAX_LOGS));
   };
 
   // 1. Initial Load Operations — paginated at OPS_PAGE_SIZE, real-time for first page
@@ -60,7 +65,7 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
       return;
     }
     const q = query(
-      collection(db, "operations"),
+      collection(db, COLLECTIONS.OPERATIONS),
       where("projectId", "==", currentProjectId),
       orderBy("createdAt", "desc"),
       limit(OPS_PAGE_SIZE)
@@ -68,7 +73,9 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       lastOpDocRef.current = snapshot.docs[snapshot.docs.length - 1] ?? null;
       setHasMoreOps(snapshot.docs.length === OPS_PAGE_SIZE);
-      setOperations(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      const ops = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Operation));
+      setOperations(ops);
+      operationsRef.current = ops;
     });
     return () => unsubscribe();
   }, [currentProjectId]);
@@ -79,7 +86,7 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
     setLoadingMoreOps(true);
     try {
       const q = query(
-        collection(db, "operations"),
+        collection(db, COLLECTIONS.OPERATIONS),
         where("projectId", "==", currentProjectId),
         orderBy("createdAt", "desc"),
         startAfter(lastOpDocRef.current),
@@ -88,21 +95,25 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
       const snap = await getDocs(q);
       lastOpDocRef.current = snap.docs[snap.docs.length - 1] ?? null;
       setHasMoreOps(snap.docs.length === OPS_PAGE_SIZE);
-      setOperations(prev => [...prev, ...snap.docs.map(d => ({ id: d.id, ...d.data() }))]);
+      const more = snap.docs.map(d => ({ id: d.id, ...d.data() } as Operation));
+      setOperations(prev => [...prev, ...more]);
+      operationsRef.current = [...operationsRef.current, ...more];
     } finally {
       setLoadingMoreOps(false);
     }
   }, [currentProjectId]);
 
+  useEffect(() => { configRef.current = config; }, [config]);
+
   // 2. Background Polling Service for Incomplete Tasks
   useEffect(() => {
     const pollInterval = setInterval(async () => {
-      const runningOps = operations.filter(op => op.status === "RUNNING");
+      const runningOps = operationsRef.current.filter(op => op.status === "RUNNING");
       
       for (const op of runningOps) {
         try {
-          const modelName = op.modelUsed || (op.type === "upscale" ? config.upscaleModel : (op.type === "perf-estimation" || op.type === "perf-generation") ? "veo-experimental" : config.videoGenModel);
-          const endpoint = `https://${config.location}-aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${config.location}/publishers/google/models/${modelName}:fetchPredictOperation`;
+          const modelName = op.modelUsed || (op.type === "upscale" ? configRef.current.upscaleModel : (op.type === "perf-estimation" || op.type === "perf-generation") ? MODELS.EXPERIMENTAL : configRef.current.videoGenModel);
+          const endpoint = `https://${configRef.current.location}-aiplatform.googleapis.com/v1/projects/${configRef.current.projectId}/locations/${configRef.current.location}/publishers/google/models/${modelName}:fetchPredictOperation`;
 
           const response = await fetch("/api/proxy", {
             method: "POST",
@@ -113,7 +124,7 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
 
           if (data.done) {
             if (data.error) {
-              await updateDoc(doc(db, "operations", op.id), {
+              await updateDoc(doc(db, COLLECTIONS.OPERATIONS, op.id), {
                 status: "ERROR",
                 updatedAt: Timestamp.now(),
                 completedAt: Timestamp.now(),
@@ -121,7 +132,7 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
               });
               addLog({ type: "ERROR", message: `Operation Failed: ${op.id}`, operationId: op.name, details: data.error });
             } else {
-              await updateDoc(doc(db, "operations", op.id), {
+              await updateDoc(doc(db, COLLECTIONS.OPERATIONS, op.id), {
                 status: "DONE",
                 updatedAt: Timestamp.now(),
                 completedAt: Timestamp.now(),
@@ -129,17 +140,17 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
               });
               // Save LRO outputs to appropriate collections.
               // The API returns two video entries — prefer the one with mimeType (has .mp4 extension)
-              const videos = data.response?.videos || [];
+              const videos: Array<{ gcsUri?: string; mimeType?: string }> = data.response?.videos || [];
               addLog({ type: "FLOW", message: `Videos array (${videos.length} entries)`, data: { videos } });
               const outputGcsUri: string | undefined =
-                videos.find((v: any) => v.mimeType === "video/mp4")?.gcsUri ||
+                videos.find(v => v.mimeType === "video/mp4")?.gcsUri ||
                 (videos[0]?.gcsUri ? videos[0].gcsUri + ".mp4" : undefined);
 
               if ((op.type === "upscale" || op.type === "transform" || op.type === "perf-generation") && outputGcsUri) {
                 // Regular video outputs → videos collection
                 let outputUrl: string;
                 try { outputUrl = await getAuthenticatedUrl(outputGcsUri); } catch { outputUrl = gcsToFirebaseUrl(outputGcsUri); }
-                await addDoc(collection(db, "videos"), {
+                await addDoc(collection(db, COLLECTIONS.VIDEOS), {
                   name: op.type === "upscale" ? "Upscale output"
                     : op.type === "transform" ? "Transform output"
                     : "Performance output",
@@ -150,7 +161,7 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
                   createdAt: Timestamp.now(),
                 });
                 // Store output URLs on the operation for easy access
-                await updateDoc(doc(db, "operations", op.id), {
+                await updateDoc(doc(db, COLLECTIONS.OPERATIONS, op.id), {
                   outputGcsUri,
                   outputVideoUrl: outputUrl,
                 });
@@ -160,7 +171,7 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
                 // Mesh outputs → perfMeshes collection only (NOT videos)
                 let outputUrl: string;
                 try { outputUrl = await getAuthenticatedUrl(outputGcsUri); } catch { outputUrl = gcsToFirebaseUrl(outputGcsUri); }
-                const meshDoc = await addDoc(collection(db, "perfMeshes"), {
+                const meshDoc = await addDoc(collection(db, COLLECTIONS.PERF_MESHES), {
                   name: `Mesh from ${op.inputVideoUrl ? "uploaded video" : "source"}`,
                   url: outputUrl,
                   gcsUri: outputGcsUri,
@@ -170,7 +181,7 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
                   projectId: op.projectId,
                   createdAt: Timestamp.now(),
                 });
-                await updateDoc(doc(db, "operations", op.id), {
+                await updateDoc(doc(db, COLLECTIONS.OPERATIONS, op.id), {
                   outputGcsUri,
                   outputVideoUrl: outputUrl,
                   perfMeshDocId: meshDoc.id,
@@ -183,13 +194,13 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
           console.error("Polling error:", error);
         }
       }
-    }, (Number(config.pollIntervalSeconds) || 10) * 1000);
+    }, (Number(configRef.current.pollIntervalSeconds) || DEFAULTS.POLL_INTERVAL_SECONDS) * 1000);
 
     return () => clearInterval(pollInterval);
-  }, [operations, config]);
+  }, []);
 
   // 3. Generation Flow
-  const handleGenerate = async (payload: any, isLongRunning: boolean = false) => {
+  const handleGenerate = async (payload: GenerationPayload, isLongRunning: boolean = false) => {
     addLog({
       type: "REQUEST",
       message: isLongRunning ? "Starting LRO Task" : "Generating Frames",
@@ -200,6 +211,7 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
     // Extract all generation parameters as top-level fields for easy querying
     const instance = payload?.instances?.[0] || {};
     const params = payload?.parameters || {};
+    const experiments = (params.experiments || {}) as Record<string, unknown>;
     const extractedParams = {
       prompt: instance.prompt || null,
       durationSeconds: params.durationSeconds || null,
@@ -210,13 +222,13 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
       fps: instance.fps || null,
       inputType: instance.video ? "video" : instance.referenceImages ? "image" : null,
       inputGcsUri: instance.video?.gcsUri || instance.referenceImages?.[0]?.image?.gcsUri || null,
-      maskVideoGcsUri: params.experiments?.videoTransformMaskGcsUri || null,
-      videoTransformStrength: params.experiments?.videoTransformStrength ?? null,
-      numDiffusionSteps: params.experiments?.numDiffusionSteps ?? null,
-      inputFileSize: (payload._inputFileSize as number | null) ?? null,
+      maskVideoGcsUri: (experiments.videoTransformMaskGcsUri as string | undefined) || null,
+      videoTransformStrength: (experiments.videoTransformStrength as number | undefined) ?? null,
+      numDiffusionSteps: (experiments.numDiffusionSteps as number | undefined) ?? null,
+      inputFileSize: payload._inputFileSize ?? null,
       // Performance-specific metadata
       inputVideoUrl: payload._inputVideoUrl || null,
-      meshGcsUri: params.experiments?.perfMeshGcsUri || null,
+      meshGcsUri: (experiments.perfMeshGcsUri as string | undefined) || null,
       meshVideoUrl: payload._meshVideoUrl || null,
       characterImageGcsUri: instance.referenceImages?.[0]?.image?.gcsUri || null,
       characterImageUrl: payload._characterImageUrl || null,
@@ -224,9 +236,10 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
     };
 
     try {
-      const { _model: metaModel, _inputFileSize: inputFileSize, _operationType: _opType, _inputVideoUrl: _ivUrl, _meshVideoUrl: _mvUrl, _characterImageUrl: _ciUrl, _sourceVideoUrl: _svUrl, ...apiPayload } = payload;
-      const experimentModel = params.experiments?.modelName;
-      const modelUsed = experimentModel === 'veo3p1_upscale'
+      const { _model: metaModel, _inputFileSize: _ifs, _operationType: _opType, _inputVideoUrl: _ivUrl, _meshVideoUrl: _mvUrl, _characterImageUrl: _ciUrl, _sourceVideoUrl: _svUrl, ...apiPayload } = payload;
+      void _ifs; void _opType; void _ivUrl; void _mvUrl; void _ciUrl; void _svUrl;
+      const experimentModel = experiments.modelName as string | undefined;
+      const modelUsed = experimentModel === MODELS.UPSCALE
         ? config.upscaleModel
         : metaModel || experimentModel || config.videoGenModel;
       const endpoint = `https://${config.location}-aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${config.location}/publishers/google/models/${modelUsed}${isLongRunning ? ':predictLongRunning' : ':predict'}`;
@@ -239,11 +252,11 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
 
       const data = await response.json();
 
-      const explicitType = (payload as any)._operationType;
+      const explicitType = payload._operationType;
       const operationType = explicitType || params.task || (metaModel === "veo-experimental" ? "transform" : "generation");
 
       if (isLongRunning && data.name) {
-        await addDoc(collection(db, "operations"), {
+        await addDoc(collection(db, COLLECTIONS.OPERATIONS), {
           name: data.name,
           status: "RUNNING",
           type: operationType,
@@ -263,7 +276,7 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
           operationId: data.name
         });
       } else if (!isLongRunning) {
-        await addDoc(collection(db, "operations"), {
+        await addDoc(collection(db, COLLECTIONS.OPERATIONS), {
           name: null,
           status: data.error ? "ERROR" : "DONE",
           type: operationType,
@@ -285,17 +298,17 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
         message: isLongRunning ? "LRO Started" : "Frames Generated",
         data: data
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       addLog({
         type: "ERROR",
         message: "Generation Failed",
-        details: error.message
+        details: error instanceof Error ? error.message : String(error)
       });
     }
   };
 
-  const updateOperationStatus = async (id: string, status: "DONE" | "ERROR", result?: any, error?: any) => {
-    await updateDoc(doc(db, "operations", id), {
+  const updateOperationStatus = async (id: string, status: "DONE" | "ERROR", result?: unknown, error?: unknown) => {
+    await updateDoc(doc(db, COLLECTIONS.OPERATIONS, id), {
       status,
       updatedAt: Timestamp.now(),
       ...(status === "DONE" || status === "ERROR" ? { completedAt: Timestamp.now() } : {}),
