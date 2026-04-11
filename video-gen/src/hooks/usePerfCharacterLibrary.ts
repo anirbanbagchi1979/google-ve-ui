@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { PerfCharacter } from "@/types";
+import { COLLECTIONS, PAGE_SIZES } from "@/constants";
 
 export function usePerfCharacterLibrary(projectId: string | null) {
   const [characters, setCharacters] = useState<PerfCharacter[]>([]);
@@ -16,10 +17,10 @@ export function usePerfCharacterLibrary(projectId: string | null) {
     setLoading(true);
     try {
       const q = query(
-        collection(db, "perfCharacters"),
+        collection(db, COLLECTIONS.PERF_CHARACTERS),
         where("projectId", "==", projectId),
         orderBy("createdAt", "desc"),
-        limit(20)
+        limit(PAGE_SIZES.CHARACTERS)
       );
       const snap = await getDocs(q);
       setCharacters(

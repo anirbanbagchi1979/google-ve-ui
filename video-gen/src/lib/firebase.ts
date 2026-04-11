@@ -2,14 +2,16 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 import { getFirestore } from "firebase/firestore";
+import { STORAGE_KEYS } from "@/constants";
 
 const getStoredConfig = () => {
   if (typeof window === "undefined") return null;
-  const saved = localStorage.getItem("veo_dashboard_config");
+  const saved = localStorage.getItem(STORAGE_KEYS.DASHBOARD_CONFIG);
   if (!saved) return null;
   try {
     return JSON.parse(saved);
-  } catch (e) {
+  } catch {
+    // non-fatal: corrupted localStorage config falls back to env vars
     return null;
   }
 };

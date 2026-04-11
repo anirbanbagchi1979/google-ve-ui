@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Shield, Plus, Trash2, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { collection, getDocs, setDoc, deleteDoc, doc, query, orderBy, Timestamp, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { COLLECTIONS } from "@/constants";
 import { useAuth } from "@/context/AuthContext";
 import { PanelHeader } from "@/components/ui/PanelHeader";
 import { SectionLabel } from "@/components/ui/SectionLabel";
@@ -33,7 +34,7 @@ const AdminPanel = () => {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const snap = await getDocs(query(collection(db, "allowlist"), orderBy("addedAt", "desc")));
+      const snap = await getDocs(query(collection(db, COLLECTIONS.ALLOWLIST), orderBy("addedAt", "desc")));
 
       // Migrate any docs that have auto-generated IDs (id !== email) to email-as-ID format
       const migrations: Promise<void>[] = [];
@@ -41,8 +42,8 @@ const AdminPanel = () => {
         const email = d.data().email;
         if (email && d.id !== email) {
           migrations.push(
-            setDoc(doc(db, "allowlist", email), { ...d.data() })
-              .then(() => deleteDoc(doc(db, "allowlist", d.id)))
+            setDoc(doc(db, COLLECTIONS.ALLOWLIST, email), { ...d.data() })
+              .then(() => deleteDoc(doc(db, COLLECTIONS.ALLOWLIST, d.id)))
           );
         }
       });
@@ -50,7 +51,7 @@ const AdminPanel = () => {
 
       // Re-fetch after migration (or use current data if no migration needed)
       const source = migrations.length > 0
-        ? await getDocs(query(collection(db, "allowlist"), orderBy("addedAt", "desc")))
+        ? await getDocs(query(collection(db, COLLECTIONS.ALLOWLIST), orderBy("addedAt", "desc")))
         : snap;
 
       setUsers(source.docs.map(d => ({
@@ -60,7 +61,7 @@ const AdminPanel = () => {
         isAdmin: d.data().isAdmin === true,
       })));
     } catch (e) {
-      console.error(e);
+      console.error("[AdminPanel] load users failed:", e);
       showFeedback("error", "Failed to load users.");
     } finally {
       setLoading(false);
@@ -81,7 +82,7 @@ const AdminPanel = () => {
     }
     setAdding(true);
     try {
-      await setDoc(doc(db, "allowlist", email), {
+      await setDoc(doc(db, COLLECTIONS.ALLOWLIST, email), {
         email,
         addedBy: user?.email ?? "unknown",
         addedAt: Timestamp.now(),
@@ -91,6 +92,7 @@ const AdminPanel = () => {
       await fetchUsers();
       showFeedback("success", `${email} added.`);
     } catch (e) {
+      console.error("[AdminPanel] add user failed:", e);
       showFeedback("error", "Failed to add user.");
     } finally {
       setAdding(false);
@@ -100,10 +102,11 @@ const AdminPanel = () => {
   const handleDelete = async (email: string) => {
     setDeletingEmail(email);
     try {
-      await deleteDoc(doc(db, "allowlist", email));
+      await deleteDoc(doc(db, COLLECTIONS.ALLOWLIST, email));
       await fetchUsers();
       showFeedback("success", `${email} removed.`);
     } catch (e) {
+      console.error("[AdminPanel] delete user failed:", e);
       showFeedback("error", "Failed to remove user.");
     } finally {
       setDeletingEmail(null);
@@ -113,10 +116,11 @@ const AdminPanel = () => {
   const handleToggleAdmin = async (email: string, currentIsAdmin: boolean) => {
     setTogglingEmail(email);
     try {
-      await updateDoc(doc(db, "allowlist", email), { isAdmin: !currentIsAdmin });
+      await updateDoc(doc(db, COLLECTIONS.ALLOWLIST, email), { isAdmin: !currentIsAdmin });
       await fetchUsers();
       showFeedback("success", `${email} is ${!currentIsAdmin ? "now an admin" : "no longer an admin"}.`);
     } catch (e) {
+      console.error("[AdminPanel] toggle admin failed:", e);
       showFeedback("error", "Failed to update admin status.");
     } finally {
       setTogglingEmail(null);

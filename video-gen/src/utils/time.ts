@@ -6,13 +6,13 @@ import type { Operation } from "@/types";
  */
 export const getDurationString = (op: Operation, now: number = Date.now()): string | null => {
   if (!op.createdAt) return null;
-  const start = op.createdAt.seconds ? op.createdAt.seconds * 1000 : new Date(op.createdAt).getTime();
+  const start = op.createdAt.toMillis();
   let end: number;
 
   if (op.completedAt) {
-    end = op.completedAt.seconds ? op.completedAt.seconds * 1000 : new Date(op.completedAt).getTime();
+    end = op.completedAt.toMillis();
   } else if (op.status === "DONE" || op.status === "ERROR") {
-    end = op.updatedAt?.seconds ? op.updatedAt.seconds * 1000 : new Date(op.updatedAt || now).getTime();
+    end = op.updatedAt?.toMillis() ?? now;
   } else {
     end = now;
   }
@@ -147,6 +147,12 @@ export const validateVideoConstraints = (file: File): Promise<string | null> =>
     vid.onerror = () => { URL.revokeObjectURL(url); resolve("Could not read video metadata."); };
     vid.src = url;
   });
+
+/**
+ * Generate a filesystem-safe timestamp string (e.g. "2026-04-09_14-30-00").
+ */
+export const generateTimestamp = (): string =>
+  new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19).replace("T", "_");
 
 /**
  * Format seconds as MM:SS string.

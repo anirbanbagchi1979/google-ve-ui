@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import { DEFAULTS, API, STORAGE_KEYS, MODELS } from "@/constants";
 
 export interface AppConfig {
   projectId: string;
@@ -28,12 +29,12 @@ interface ConfigContextType {
 
 const DEFAULT_CONFIG: AppConfig = {
   projectId: process.env.NEXT_PUBLIC_GCP_PROJECT_ID || "",
-  location: "us-central1",
+  location: API.DEFAULT_REGION,
   gcsBucket: process.env.NEXT_PUBLIC_GCS_BUCKET || "",
-  outputFolder: "outputs",
-  videoGenModel: "veo-001",
-  upscaleModel: "veo-experimental",
-  pollIntervalSeconds: 10,
+  outputFolder: DEFAULTS.OUTPUT_FOLDER,
+  videoGenModel: MODELS.VIDEO_GEN,
+  upscaleModel: MODELS.EXPERIMENTAL,
+  pollIntervalSeconds: DEFAULTS.POLL_INTERVAL_SECONDS,
   // Backbone Defaults
   firebaseApiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "",
   firebaseAuthDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "",
@@ -51,7 +52,7 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
 
   // Load from localStorage on mount
   useEffect(() => {
-    const saved = localStorage.getItem("veo_dashboard_config");
+    const saved = localStorage.getItem(STORAGE_KEYS.DASHBOARD_CONFIG);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -59,7 +60,7 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
         // Auto-fix migration for invalid upscale model ID
         if (parsed.upscaleModel === "veo3p1_upscale") {
           parsed.upscaleModel = "veo-experimental";
-          localStorage.setItem("veo_dashboard_config", JSON.stringify(parsed));
+          localStorage.setItem(STORAGE_KEYS.DASHBOARD_CONFIG, JSON.stringify(parsed));
         }
         
         setConfig(parsed);
@@ -72,12 +73,12 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
   const updateConfig = (newConfig: Partial<AppConfig>) => {
     const updated = { ...config, ...newConfig };
     setConfig(updated);
-    localStorage.setItem("veo_dashboard_config", JSON.stringify(updated));
+    localStorage.setItem(STORAGE_KEYS.DASHBOARD_CONFIG, JSON.stringify(updated));
   };
 
   const resetConfig = () => {
     setConfig(DEFAULT_CONFIG);
-    localStorage.removeItem("veo_dashboard_config");
+    localStorage.removeItem(STORAGE_KEYS.DASHBOARD_CONFIG);
   };
 
   return (

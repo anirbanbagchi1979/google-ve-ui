@@ -1,5 +1,7 @@
 // src/utils/payload.ts
 import { getGcsUri } from "./gcs";
+import { MODELS, DEFAULTS, STORAGE_PATHS, MIME } from "@/constants";
+import { generateTimestamp } from "./time";
 
 interface AppConfig {
   gcsBucket: string;
@@ -24,7 +26,7 @@ export const buildGenerationPayload = (
                 {
                   image: {
                     gcsUri: getGcsUri(selectedAssetUrl),
-                    mimeType: "image/jpeg",
+                    mimeType: MIME.IMAGE_JPEG,
                   },
                   referenceType: "asset",
                 },
@@ -34,16 +36,16 @@ export const buildGenerationPayload = (
           ? {
               video: {
                 gcsUri: getGcsUri(selectedAssetUrl),
-                mimeType: "video/mp4",
+                mimeType: MIME.VIDEO_MP4,
               },
             }
           : {}),
       },
     ],
     parameters: {
-      durationSeconds: 5,
-      sampleCount: 1,
-      aspectRatio: "16:9",
+      durationSeconds: DEFAULTS.DURATION_SECONDS,
+      sampleCount: DEFAULTS.SAMPLE_COUNT,
+      aspectRatio: DEFAULTS.ASPECT_RATIO,
     },
   };
 };
@@ -54,27 +56,23 @@ export const buildGenerationPayload = (
 export const buildPerfEstimationPayload = (
   videoGcsUri: string,
   config: AppConfig,
-  seed: number = 777
+  seed: number = DEFAULTS.SEED
 ): object => {
-  const timestamp = new Date()
-    .toISOString()
-    .replace(/[:.]/g, "-")
-    .slice(0, 19)
-    .replace("T", "_");
-  const outputUri = `gs://${config.gcsBucket}/bluemeshes/bluemesh_${timestamp}`;
+  const timestamp = generateTimestamp();
+  const outputUri = `gs://${config.gcsBucket}/${STORAGE_PATHS.BLUE_MESHES}/bluemesh_${timestamp}`;
 
   return {
-    _model: "veo-experimental",
+    _model: MODELS.EXPERIMENTAL,
     _operationType: "perf-estimation",
     instances: [
       {
-        video: { gcsUri: videoGcsUri, mimeType: "video/mp4" },
+        video: { gcsUri: videoGcsUri, mimeType: MIME.VIDEO_MP4 },
       },
     ],
     parameters: {
       seed,
       storageUri: outputUri,
-      experiments: { modelName: "veo-exp-perf-estimation" },
+      experiments: { modelName: MODELS.PERF_ESTIMATION },
     },
   };
 };
@@ -93,16 +91,12 @@ export const buildPerfGenerationPayload = (
     compressionQuality?: "optimized" | "lossless";
   } = {}
 ): object => {
-  const { prompt, seed = 78, compressionQuality = "optimized" } = options;
-  const timestamp = new Date()
-    .toISOString()
-    .replace(/[:.]/g, "-")
-    .slice(0, 19)
-    .replace("T", "_");
+  const { prompt, seed = DEFAULTS.PERF_GENERATION_SEED, compressionQuality = DEFAULTS.COMPRESSION_QUALITY } = options;
+  const timestamp = generateTimestamp();
   const outputUri = `gs://${config.gcsBucket}/${config.outputFolder}/video_${timestamp}`;
 
   return {
-    _model: "veo-experimental",
+    _model: MODELS.EXPERIMENTAL,
     _operationType: "perf-generation",
     instances: [
       {
@@ -120,7 +114,7 @@ export const buildPerfGenerationPayload = (
       compressionQuality,
       storageUri: outputUri,
       experiments: {
-        modelName: "veo-exp-perf-generation",
+        modelName: MODELS.PERF_GENERATION,
         perfMeshGcsUri: meshGcsUri,
       },
     },
@@ -131,27 +125,23 @@ export const buildPerfGenerationPayload = (
  * Build a Vertex AI upscale payload.
  */
 export const buildUpscalePayload = (gcsUri: string, config: AppConfig): object => {
-  const timestamp = new Date()
-    .toISOString()
-    .replace(/[:.]/g, "-")
-    .slice(0, 19)
-    .replace("T", "_");
+  const timestamp = generateTimestamp();
   const outputUri = `gs://${config.gcsBucket}/${config.outputFolder}/video_${timestamp}`;
 
   return {
     instances: [
       {
-        video: { gcsUri, mimeType: "video/mp4" },
-        fps: 24,
+        video: { gcsUri, mimeType: MIME.VIDEO_MP4 },
+        fps: DEFAULTS.FPS,
       },
     ],
     parameters: {
       task: "upscale",
-      compressionQuality: "optimized",
-      resolution: "4k",
-      aspectRatio: "16:9",
+      compressionQuality: DEFAULTS.COMPRESSION_QUALITY,
+      resolution: DEFAULTS.RESOLUTION,
+      aspectRatio: DEFAULTS.ASPECT_RATIO,
       storageUri: outputUri,
-      experiments: { modelName: "veo3p1_upscale" },
+      experiments: { modelName: MODELS.UPSCALE },
     },
   };
 };

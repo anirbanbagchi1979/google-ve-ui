@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { GoogleAuth } from "google-auth-library";
 import path from "path";
 import fs from "fs";
+import { API } from "@/constants";
 
-const PROXY_URL = "https://vef-proxy-uhz33244pa-uc.a.run.app";
+const PROXY_URL = API.PROXY_URL;
 
 // In Cloud Run, K_SERVICE is set — use identity token to call vef-proxy
 // Locally, call Vertex AI directly using the local service account key file
@@ -16,7 +17,7 @@ const keyFile = [
 
 const directAuth = new GoogleAuth({
   ...(keyFile ? { keyFile } : {}),
-  scopes: "https://www.googleapis.com/auth/cloud-platform",
+  scopes: API.VERTEX_SCOPE,
 });
 
 const idTokenAuth = new GoogleAuth();
@@ -43,7 +44,7 @@ export async function GET(request: Request) {
       const projectId = await directAuth.getProjectId();
       const { token } = await client.getAccessToken();
       const sanitized = operationName.startsWith("/") ? operationName.slice(1) : operationName;
-      const endpoint = `https://us-central1-aiplatform.googleapis.com/v1/${sanitized}`;
+      const endpoint = `https://${API.DEFAULT_REGION}-aiplatform.googleapis.com/v1/${sanitized}`;
       const response = await fetch(endpoint, {
         method: "GET",
         headers: { "Authorization": `Bearer ${token}`, "X-Goog-User-Project": projectId },
@@ -84,7 +85,7 @@ export async function POST(request: Request) {
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`,
-          "X-Vertex-AI-LLM-Request-Type": "shared",
+          "X-Vertex-AI-LLM-Request-Type": API.VERTEX_REQUEST_TYPE,
           "X-Goog-User-Project": projectId,
         },
         body: JSON.stringify(payload),

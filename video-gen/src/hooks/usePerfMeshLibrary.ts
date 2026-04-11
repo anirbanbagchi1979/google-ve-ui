@@ -3,8 +3,9 @@ import { collection, query, where, orderBy, limit, getDocs, startAfter, QueryDoc
 import { ref, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import { PerfMesh } from "@/types";
+import { COLLECTIONS, PAGE_SIZES } from "@/constants";
 
-const MESH_PAGE_SIZE = 5;
+const MESH_PAGE_SIZE = PAGE_SIZES.MESHES;
 
 export function usePerfMeshLibrary(projectId: string | null) {
   const [meshes, setMeshes] = useState<PerfMesh[]>([]);
@@ -58,7 +59,7 @@ export function usePerfMeshLibrary(projectId: string | null) {
     setLoading(true);
     try {
       const q = query(
-        collection(db, "perfMeshes"),
+        collection(db, COLLECTIONS.PERF_MESHES),
         where("projectId", "==", projectId),
         orderBy("createdAt", "desc"),
         limit(MESH_PAGE_SIZE)
@@ -81,7 +82,7 @@ export function usePerfMeshLibrary(projectId: string | null) {
     setLoadingMore(true);
     try {
       const q = query(
-        collection(db, "perfMeshes"),
+        collection(db, COLLECTIONS.PERF_MESHES),
         where("projectId", "==", projectId),
         orderBy("createdAt", "desc"),
         startAfter(lastDocRef.current),

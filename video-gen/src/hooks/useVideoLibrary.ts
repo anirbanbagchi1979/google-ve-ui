@@ -1,10 +1,11 @@
 "use client";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { collection, query, where, orderBy, limit, startAfter, getDocs, QueryConstraint, QueryDocumentSnapshot } from "firebase/firestore";
 import { ref, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
+import { COLLECTIONS, PAGE_SIZES } from "@/constants";
 
-const PAGE_SIZE = 4;
+const PAGE_SIZE = PAGE_SIZES.VIDEOS;
 
 export interface VideoItem {
   id: string;
@@ -52,13 +53,14 @@ export function useVideoLibrary(
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const lastDocRef = useRef<QueryDocumentSnapshot | null>(null);
+  const extraFiltersKey = useMemo(() => JSON.stringify(extraFilters), [extraFilters]);
 
   const fetchVideos = useCallback(async () => {
     if (!currentProjectId) return;
     setLoadingAssets(true);
     try {
       const q = query(
-        collection(db, "videos"),
+        collection(db, COLLECTIONS.VIDEOS),
         where("projectId", "==", currentProjectId),
         where("isUpscaleOutput", "==", false),
         ...extraFilters,
@@ -77,18 +79,19 @@ export function useVideoLibrary(
       }));
       setVideos(await resolveVideos(raw));
     } catch (e) {
-      console.error(e);
+      console.error("[useVideoLibrary] fetch videos failed:", e);
     } finally {
       setLoadingAssets(false);
     }
-  }, [currentProjectId, JSON.stringify(extraFilters)]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentProjectId, extraFiltersKey]);
 
   const loadMoreVideos = useCallback(async () => {
     if (!currentProjectId || !lastDocRef.current) return;
     setLoadingMore(true);
     try {
       const q = query(
-        collection(db, "videos"),
+        collection(db, COLLECTIONS.VIDEOS),
         where("projectId", "==", currentProjectId),
         where("isUpscaleOutput", "==", false),
         ...extraFilters,
@@ -109,11 +112,12 @@ export function useVideoLibrary(
       const resolved = await resolveVideos(raw);
       setVideos(prev => [...prev, ...resolved]);
     } catch (e) {
-      console.error(e);
+      console.error("[useVideoLibrary] load more videos failed:", e);
     } finally {
       setLoadingMore(false);
     }
-  }, [currentProjectId, JSON.stringify(extraFilters)]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentProjectId, extraFiltersKey]);
 
   return { videos, setVideos, loadingAssets, loadingMore, hasMore, fetchVideos, loadMoreVideos };
 }

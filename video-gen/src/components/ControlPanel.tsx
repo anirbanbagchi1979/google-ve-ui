@@ -4,39 +4,25 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
   Image as ImageIcon,
   Video as VideoIcon,
-  Music,
   Upload,
   Folder,
-  ChevronDown,
-  Monitor,
-  Clock,
-  Settings2,
-  LayoutGrid,
   Loader2,
   CheckCircle,
   AlertCircle,
   PlayCircle,
-  Maximize2
 } from "lucide-react";
-import { storage, db } from "@/lib/firebase";
-import { ref, listAll, getDownloadURL, uploadBytesResumable } from "firebase/storage";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { storage } from "@/lib/firebase";
+import { ref, listAll, getDownloadURL } from "firebase/storage";
 import { useVideoLibrary } from "@/hooks/useVideoLibrary";
+import { useFileUpload } from "@/hooks/useFileUpload";
 import { LoadMoreButton } from "@/components/ui/LoadMoreButton";
 import { SectionLabel } from "@/components/ui/SectionLabel";
 import { useConfig } from "@/context/ConfigContext";
 import { useProject } from "@/context/ProjectContext";
-import { formatBytes, detectAspectRatioFromFile, validateVideoConstraints } from "@/utils/time";
+import { formatBytes } from "@/utils/time";
 import { getGcsUri } from "@/utils/gcs";
-
-interface VideoAsset {
-  id: string;
-  name: string;
-  url: string;
-  size?: number;
-  aspectRatio?: string;
-  createdAt: any;
-}
+import { COLLECTIONS, STORAGE_PATHS, DEFAULTS, MODELS, MIME } from "@/constants";
+import { generateTimestamp } from "@/utils/time";
 
 interface ControlPanelProps {
   onVideoSelect?: (url: string) => void;
@@ -46,7 +32,7 @@ interface ControlPanelProps {
 const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
   const { config } = useConfig();
   const { currentProjectId } = useProject();
-  const [activeTab, setActiveTab] = useState<"Image" | "Video" | "Audio">("Video");
+  const [activeTab, setActiveTab] = useState<"Image" | "Video">("Video");
   const [assetFilter, setAssetFilter] = useState<"Image" | "Video">("Video");
 
   // Asset States
@@ -54,12 +40,22 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
   const { videos, loadingAssets, loadingMore: loadingMoreVideos, hasMore: hasMoreVideos, fetchVideos, loadMoreVideos } = useVideoLibrary(currentProjectId);
   const [assetError, setAssetError] = useState<string | null>(null);
 
-  // Video Upload States
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  // Video Upload
   const [uploadSuccess, setUploadSuccess] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoUpload = useFileUpload({
+    storagePath: STORAGE_PATHS.VIDEOS,
+    firestoreCollection: COLLECTIONS.VIDEOS,
+    accept: "video",
+    projectId: currentProjectId,
+    extraDocFields: { isUpscaleOutput: false },
+    onSuccess: async () => {
+      await fetchVideos();
+      setAssetFilter("Video");
+      setUploadSuccess(true);
+      setTimeout(() => setUploadSuccess(false), 3000);
+    },
+  });
 
   // Selection & Prompt State
   const [selectedAssetUrl, setSelectedAssetUrl] = useState<string | null>(null);
@@ -100,70 +96,6 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
     }
   }, [activeTab]);
 
-  const handleVideoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith("video/")) {
-      setUploadError("Please select a valid video file.");
-      return;
-    }
-
-    const validationError = await validateVideoConstraints(file);
-    if (validationError) { setUploadError(validationError); return; }
-
-    setIsUploading(true);
-    setUploadProgress(0);
-    setUploadSuccess(false);
-    setUploadError(null);
-
-    const detectedRatio = await detectAspectRatioFromFile(file);
-
-    try {
-      const storageRef = ref(storage, `videos/${Date.now()}_${file.name}`);
-      const uploadTask = uploadBytesResumable(storageRef, file);
-
-      uploadTask.on('state_changed',
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          setUploadProgress(progress);
-        },
-        (error) => {
-          setUploadError("Upload failed: " + error.message);
-          setIsUploading(false);
-        },
-        async () => {
-          try {
-            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-            await addDoc(collection(db, "videos"), {
-              name: file.name,
-              url: downloadURL,
-              type: file.type,
-              size: file.size,
-              aspectRatio: detectedRatio,
-              isUpscaleOutput: false,
-              projectId: currentProjectId,
-              createdAt: serverTimestamp(),
-            });
-
-            await fetchVideos();
-            setAssetFilter("Video");
-            setUploadSuccess(true);
-            if (fileInputRef.current) fileInputRef.current.value = "";
-          } catch (err: any) {
-            setUploadError("Error saving record: " + err.message);
-          } finally {
-            setIsUploading(false);
-            setTimeout(() => setUploadSuccess(false), 3000);
-          }
-        }
-      );
-    } catch (err: any) {
-      setUploadError("Something went wrong.");
-      setIsUploading(false);
-    }
-  };
-
   return (
     <div className="w-[380px] flex flex-col bg-white border-r border-slate-200 h-screen shrink-0 overflow-hidden text-slate-900 border-l border-slate-100">
       {/* Top Tabs */}
@@ -184,27 +116,19 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
         >
           <VideoIcon size={16} /> Video
         </button>
-        <button 
-          onClick={() => setActiveTab("Audio")}
-          className={`flex items-center gap-2 px-4 py-2 border-b-2 font-medium text-sm transition-all ${
-            activeTab === "Audio" ? "border-slate-900 text-slate-900" : "border-transparent text-slate-400 hover:text-slate-600"
-          }`}
-        >
-          <Music size={16} /> Audio
-        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
         {/* Upload Section */}
         <div 
-          onClick={() => !isUploading && fileInputRef.current?.click()}
-          className={`relative group cursor-pointer ${isUploading ? 'cursor-not-allowed' : ''}`}
+          onClick={() => !videoUpload.isUploading && fileInputRef.current?.click()}
+          className={`relative group cursor-pointer ${videoUpload.isUploading ? 'cursor-not-allowed' : ''}`}
         >
           <div className="aspect-video bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center gap-3 transition-colors group-hover:bg-slate-100 group-hover:border-slate-300">
-            {isUploading ? (
+            {videoUpload.isUploading ? (
               <div className="flex flex-col items-center gap-2">
                 <Loader2 size={32} className="text-blue-500 animate-spin" />
-                <p className="text-xs font-bold text-slate-600">{Math.round(uploadProgress)}% Uploading...</p>
+                <p className="text-xs font-bold text-slate-600">{Math.round(videoUpload.progress)}% Uploading...</p>
               </div>
             ) : uploadSuccess ? (
               <div className="flex flex-col items-center gap-2 animate-bounce">
@@ -235,25 +159,24 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
                       onClick={(e) => {
                         e.stopPropagation();
                         
-                         const now = new Date();
-                         const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19).replace('T', '_');
+                         const timestamp = generateTimestamp();
                          const outputUri = `gs://${config.gcsBucket}/${config.outputFolder}/video_${timestamp}`;
 
                          const payload = {
                            instances: [{
                              video: {
                                gcsUri: getGcsUri(selectedAssetUrl),
-                               mimeType: "video/mp4"
+                               mimeType: MIME.VIDEO_MP4
                              },
-                             fps: 24
+                             fps: DEFAULTS.FPS
                            }],
                            parameters: {
                              task: "upscale",
-                             compressionQuality: "optimized",
-                             resolution: "4k",
-                             aspectRatio: "16:9",
+                             compressionQuality: DEFAULTS.COMPRESSION_QUALITY,
+                             resolution: DEFAULTS.RESOLUTION,
+                             aspectRatio: DEFAULTS.ASPECT_RATIO,
                              storageUri: outputUri,
-                             experiments: { "modelName": "veo3p1_upscale" }
+                             experiments: { "modelName": MODELS.UPSCALE }
                            }
                          };
                          onGenerate?.(payload, true); 
@@ -297,17 +220,23 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
               </>
             )}
           </div>
-          {uploadError && (
+          {videoUpload.error && (
              <div className="mt-2 flex items-center gap-2 text-red-500 text-[10px] font-medium bg-red-50 p-2 rounded-lg">
-                <AlertCircle size={14} /> {uploadError}
+                <AlertCircle size={14} /> {videoUpload.error}
              </div>
           )}
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleVideoUpload} 
-            accept="video/*" 
-            className="hidden" 
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                await videoUpload.upload(file);
+                if (fileInputRef.current) fileInputRef.current.value = "";
+              }
+            }}
+            accept="video/*"
+            className="hidden"
           />
         </div>
 
@@ -435,29 +364,8 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
 
       {/* Bottom Controls Bar */}
       <div className="p-4 bg-slate-50 border-t border-slate-200 shrink-0">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex gap-2">
-            <button className="p-1.5 hover:bg-slate-200 rounded-md text-slate-500 transition-colors">
-              <Settings2 size={18} />
-            </button>
-            {/* Presets button removed */}
-          </div>
-          <div className="flex gap-1">
-            <button className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 rounded-lg text-[11px] font-bold shadow-sm">
-              <Monitor size={12} /> 16:9
-            </button>
-            <button className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 rounded-lg text-[11px] font-bold shadow-sm">
-              <Clock size={12} /> 5s
-            </button>
-          </div>
-        </div>
-        
         <div className="flex items-center gap-3">
-           <button className="flex-1/3 flex items-center justify-between px-3 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all active:scale-95">
-              <span className="flex items-center gap-1.5 min-w-[70px]"><LayoutGrid size={16} /> Gen-4.5</span>
-              <ChevronDown size={14} />
-           </button>
-           <button 
+           <button
             onClick={() => {
               const payload = {
                 instances: [
@@ -468,7 +376,7 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
                         {
                           image: {
                             gcsUri: getGcsUri(selectedAssetUrl),
-                            mimeType: "image/jpeg"
+                            mimeType: MIME.IMAGE_JPEG
                           },
                           referenceType: "asset"
                         }
@@ -476,20 +384,20 @@ const ControlPanel = ({ onVideoSelect, onGenerate }: ControlPanelProps) => {
                     } : selectedAssetUrl && selectedAssetType === "video" ? {
                       video: {
                         gcsUri: getGcsUri(selectedAssetUrl),
-                        mimeType: "video/mp4"
+                        mimeType: MIME.VIDEO_MP4
                       }
                     } : {})
                   }
                 ],
                 parameters: {
-                  durationSeconds: 5,
-                  sampleCount: 1,
-                  aspectRatio: "16:9"
+                  durationSeconds: DEFAULTS.DURATION_SECONDS,
+                  sampleCount: DEFAULTS.SAMPLE_COUNT,
+                  aspectRatio: DEFAULTS.ASPECT_RATIO
                 }
               };
               onGenerate?.(payload);
             }}
-            className="flex-1 py-3.5 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 active:scale-[0.97] transition-all shadow-md shadow-blue-200"
+            className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 active:scale-[0.97] transition-all shadow-md shadow-blue-200"
            >
               <VideoIcon size={18} /> Generate
            </button>

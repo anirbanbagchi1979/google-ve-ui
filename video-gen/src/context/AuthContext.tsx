@@ -5,6 +5,7 @@ import { User } from "firebase/auth";
 import { onAuthUIStateChange } from "@/lib/auth";
 import { db } from "@/lib/firebase";
 import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { COLLECTIONS } from "@/constants";
 
 interface AuthContextType {
   user: User | null;
@@ -43,7 +44,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       // Track login (non-fatal)
       try {
-        await setDoc(doc(db, "users", firebaseUser.uid), {
+        await setDoc(doc(db, COLLECTIONS.USERS, firebaseUser.uid), {
           uid: firebaseUser.uid,
           email: firebaseUser.email,
           displayName: firebaseUser.displayName,
@@ -54,7 +55,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       // Check allowlist — doc ID must equal the email address
       try {
-        const snap = await getDoc(doc(db, "allowlist", firebaseUser.email ?? ""));
+        const snap = await getDoc(doc(db, COLLECTIONS.ALLOWLIST, firebaseUser.email ?? ""));
         setIsAllowed(snap.exists());
         setIsAdmin(snap.exists() && snap.data()?.isAdmin === true);
       } catch {

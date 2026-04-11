@@ -27,7 +27,7 @@ const AppContent = ({ isAdmin }: { isAdmin: boolean }) => {
   const [previewTertiaryVideoUrl, setPreviewTertiaryVideoUrl] = useState<string | null>(null);
   const [previewLeftLabel, setPreviewLeftLabel] = useState("Input Video");
   const [previewRightLabel, setPreviewRightLabel] = useState("Output");
-  const [previewCenterLabel, setPreviewCenterLabel] = useState("Blue Mesh");
+  const [previewCenterLabel] = useState("Blue Mesh");
 
   const { currentProjectId } = useProject();
   const { operations, hasMoreOps, loadingMoreOps, loadMoreOps, logs, setLogs, addLog, handleGenerate, updateOperationStatus } = useGenerationFlow(setActiveView);
