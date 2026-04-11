@@ -4,7 +4,6 @@ import React, { useState } from "react";
 import { Video, Cpu, Maximize2, ArrowRight, Loader2 } from "lucide-react";
 import AppIcon from "@/components/AppIcon";
 import { signInWithGoogle } from "@/lib/auth";
-import { useAuth } from "@/context/AuthContext";
 
 const LoginPage = () => {
   const [loading, setLoading] = useState(false);
@@ -15,7 +14,8 @@ const LoginPage = () => {
     setError(null);
     try {
       await signInWithGoogle();
-    } catch (err: any) {
+    } catch (err) {
+      console.error("[LoginPage] sign-in failed:", err);
       setError("Sign-in failed. Please try again.");
     } finally {
       setLoading(false);

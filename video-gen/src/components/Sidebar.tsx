@@ -13,10 +13,9 @@ import {
 interface SidebarProps {
   activeView: string;
   onSelect: (view: string) => void;
-  isAdmin?: boolean;
 }
 
-const Sidebar = ({ activeView, onSelect, isAdmin }: SidebarProps) => {
+const Sidebar = ({ activeView, onSelect }: SidebarProps) => {
   const items = [
     { id: "upscale",    icon: <Sparkles size={20} />,     label: "4K Upscale" },
     { id: "transform",  icon: <Clapperboard size={20} />, label: "Transform" },

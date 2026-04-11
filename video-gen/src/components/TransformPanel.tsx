@@ -3,7 +3,6 @@
 import React, { useRef, useState, useCallback, useEffect } from "react";
 import {
   Upload,
-  Wand2,
   Clapperboard,
   Loader2,
   CheckCircle,
@@ -13,18 +12,19 @@ import {
   Image as ImageIcon,
   Film,
 } from "lucide-react";
-import { storage, db } from "@/lib/firebase";
-import { ref, getDownloadURL, uploadBytesResumable } from "firebase/storage";
-import { collection, getDocs, query, limit, where, addDoc, serverTimestamp, orderBy } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { collection, getDocs, query, limit, where } from "firebase/firestore";
 import { useVideoLibrary } from "@/hooks/useVideoLibrary";
+import { useFileUpload } from "@/hooks/useFileUpload";
 import { useConfig } from "@/context/ConfigContext";
 import { useProject } from "@/context/ProjectContext";
 import { getGcsUri } from "@/utils/gcs";
-import { formatBytes, detectAspectRatioFromFile, validateVideoConstraints } from "@/utils/time";
 import { PanelHeader } from "@/components/ui/PanelHeader";
 import { VideoThumbnailCard } from "@/components/ui/VideoThumbnailCard";
 import { LoadMoreButton } from "@/components/ui/LoadMoreButton";
 import { SectionLabel } from "@/components/ui/SectionLabel";
+import { COLLECTIONS, STORAGE_PATHS, DEFAULTS, MODELS, MIME } from "@/constants";
+import { generateTimestamp } from "@/utils/time";
 
 interface TransformPanelProps {
   onGenerate?: (payload: any, isLongRunning: boolean) => void;
@@ -38,28 +38,49 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
   const imageFileInputRef = useRef<HTMLInputElement>(null);
   const maskFileInputRef = useRef<HTMLInputElement>(null);
 
-  const { videos, setVideos, loadingAssets, loadingMore, hasMore, fetchVideos, loadMoreVideos } = useVideoLibrary(currentProjectId);
+  const { videos, loadingAssets, loadingMore, hasMore, fetchVideos, loadMoreVideos } = useVideoLibrary(currentProjectId);
 
   const [selectedVideoUrl, setSelectedVideoUrl] = useState<string | null>(null);
   const [controlImageUrl, setControlImageUrl] = useState<string | null>(null);
   const [maskVideoUrl, setMaskVideoUrl] = useState<string | null>(null);
 
   const [prompt, setPrompt] = useState("");
-  const [strength, setStrength] = useState(0.88);
-  const [steps, setSteps] = useState(20);
-  const [stepsInput, setStepsInput] = useState("20");
+  const [strength, setStrength] = useState<number>(DEFAULTS.TRANSFORM_STRENGTH);
+  const [steps, setSteps] = useState<number>(DEFAULTS.TRANSFORM_STEPS);
+  const [stepsInput, setStepsInput] = useState(String(DEFAULTS.TRANSFORM_STEPS));
   const [compressionQuality, setCompressionQuality] = useState<"optimized" | "lossless">("optimized");
 
-  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
-  const [videoUploadProgress, setVideoUploadProgress] = useState(0);
-  const [videoUploadError, setVideoUploadError] = useState<string | null>(null);
+  const videoUpload = useFileUpload({
+    storagePath: STORAGE_PATHS.VIDEOS,
+    firestoreCollection: COLLECTIONS.VIDEOS,
+    accept: "video",
+    projectId: currentProjectId,
+    extraDocFields: { isUpscaleOutput: false },
+    onSuccess: async (url) => {
+      setSelectedVideoUrl(url);
+      onVideoSelect?.(url);
+      await fetchVideos();
+    },
+  });
 
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [imageUploadError, setImageUploadError] = useState<string | null>(null);
+  const imageUpload = useFileUpload({
+    storagePath: STORAGE_PATHS.IMAGES,
+    firestoreCollection: null,
+    accept: "image",
+    projectId: currentProjectId,
+    onSuccess: (url) => { setControlImageUrl(url); },
+  });
 
-  const [isUploadingMask, setIsUploadingMask] = useState(false);
-  const [maskUploadProgress, setMaskUploadProgress] = useState(0);
-  const [maskUploadError, setMaskUploadError] = useState<string | null>(null);
+  const maskUpload = useFileUpload({
+    storagePath: STORAGE_PATHS.MASKS,
+    firestoreCollection: COLLECTIONS.MASK_VIDEOS,
+    accept: "video",
+    projectId: currentProjectId,
+    onSuccess: async (url) => {
+      setMaskVideoUrl(url);
+      await fetchMaskVideos();
+    },
+  });
 
   const [maskVideos, setMaskVideos] = useState<{ id: string; name: string; url: string }[]>([]);
   const [loadingMasks, setLoadingMasks] = useState(true);
@@ -75,7 +96,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
     setLoadingMasks(true);
     try {
       const snap = await getDocs(query(
-        collection(db, "maskVideos"),
+        collection(db, COLLECTIONS.MASK_VIDEOS),
         where("projectId", "==", currentProjectId ?? "__none__"),
         limit(20)
       ));
@@ -89,114 +110,14 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
 
   useEffect(() => { fetchMaskVideos(); }, [fetchMaskVideos]);
 
-  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("video/")) { setVideoUploadError("Please select a valid video file."); return; }
-
-    const validationError = await validateVideoConstraints(file);
-    if (validationError) { setVideoUploadError(validationError); return; }
-
-    setIsUploadingVideo(true);
-    setVideoUploadProgress(0);
-    setVideoUploadError(null);
-
-    const detectedRatio = await detectAspectRatioFromFile(file);
-
-    const storageRef = ref(storage, `videos/${Date.now()}_${file.name}`);
-    const task = uploadBytesResumable(storageRef, file);
-
-    task.on("state_changed",
-      snap => setVideoUploadProgress((snap.bytesTransferred / snap.totalBytes) * 100),
-      err => { setVideoUploadError("Upload failed: " + err.message); setIsUploadingVideo(false); },
-      async () => {
-        try {
-          const url = await getDownloadURL(task.snapshot.ref);
-          await addDoc(collection(db, "videos"), {
-            name: file.name, url, type: file.type, size: file.size,
-            aspectRatio: detectedRatio, isUpscaleOutput: false,
-            projectId: currentProjectId, createdAt: serverTimestamp(),
-          });
-          setSelectedVideoUrl(url);
-          onVideoSelect?.(url);
-          await fetchVideos();
-        } catch (e) { console.error(e); }
-        finally {
-          setIsUploadingVideo(false);
-          if (videoFileInputRef.current) videoFileInputRef.current.value = "";
-        }
-      }
-    );
-  };
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) { setImageUploadError("Please select a valid image file."); return; }
-
-    setIsUploadingImage(true);
-    setImageUploadError(null);
-
-    const storageRef = ref(storage, `images/${Date.now()}_${file.name}`);
-    const task = uploadBytesResumable(storageRef, file);
-
-    task.on("state_changed",
-      () => {},
-      err => { setImageUploadError("Upload failed: " + err.message); setIsUploadingImage(false); },
-      async () => {
-        try {
-          const url = await getDownloadURL(task.snapshot.ref);
-          setControlImageUrl(url);
-        } catch (e) { console.error(e); }
-        finally {
-          setIsUploadingImage(false);
-          if (imageFileInputRef.current) imageFileInputRef.current.value = "";
-        }
-      }
-    );
-  };
-
-  const handleMaskUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("video/")) { setMaskUploadError("Please select a valid video file."); return; }
-
-    setIsUploadingMask(true);
-    setMaskUploadProgress(0);
-    setMaskUploadError(null);
-
-    const storageRef = ref(storage, `masks/${Date.now()}_${file.name}`);
-    const task = uploadBytesResumable(storageRef, file);
-
-    task.on("state_changed",
-      snap => setMaskUploadProgress((snap.bytesTransferred / snap.totalBytes) * 100),
-      err => { setMaskUploadError("Upload failed: " + err.message); setIsUploadingMask(false); },
-      async () => {
-        try {
-          const url = await getDownloadURL(task.snapshot.ref);
-          await addDoc(collection(db, "maskVideos"), {
-            name: file.name, url, type: file.type, size: file.size,
-            projectId: currentProjectId, createdAt: serverTimestamp(),
-          });
-          setMaskVideoUrl(url);
-          await fetchMaskVideos();
-        } catch (e) { console.error(e); }
-        finally {
-          setIsUploadingMask(false);
-          if (maskFileInputRef.current) maskFileInputRef.current.value = "";
-        }
-      }
-    );
-  };
-
   const handleStepsChange = (val: string) => {
     setStepsInput(val);
     const n = parseInt(val);
-    if (!isNaN(n) && n >= 1 && n <= 250) setSteps(n);
+    if (!isNaN(n) && n >= 1 && n <= DEFAULTS.TRANSFORM_STEPS_MAX) setSteps(n);
   };
 
   const handleStepsBlur = () => {
-    const n = Math.max(1, Math.min(250, isNaN(steps) ? 20 : steps));
+    const n = Math.max(1, Math.min(DEFAULTS.TRANSFORM_STEPS_MAX, isNaN(steps) ? DEFAULTS.TRANSFORM_STEPS : steps));
     setSteps(n);
     setStepsInput(String(n));
   };
@@ -208,24 +129,24 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
     setConfirmed(false);
 
     try {
-      const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19).replace("T", "_");
+      const timestamp = generateTimestamp();
       const outputUri = `gs://${config.gcsBucket}/${config.outputFolder}/video_${timestamp}`;
 
       const selectedVideo = videos.find(v => v.url === selectedVideoUrl);
       const payload = {
-        _model: "veo-experimental",
+        _model: MODELS.EXPERIMENTAL,
         _inputFileSize: selectedVideo?.size ?? null,
         instances: [{
           prompt,
-          video: { gcsUri: getGcsUri(selectedVideoUrl), mimeType: "video/mp4" },
-          ...(controlImageUrl ? { image: { gcsUri: getGcsUri(controlImageUrl), mimeType: "image/jpeg" } } : {}),
+          video: { gcsUri: getGcsUri(selectedVideoUrl), mimeType: MIME.VIDEO_MP4 },
+          ...(controlImageUrl ? { image: { gcsUri: getGcsUri(controlImageUrl), mimeType: MIME.IMAGE_JPEG } } : {}),
         }],
         parameters: {
-          seed: 777,
+          seed: DEFAULTS.SEED,
           compressionQuality,
           storageUri: outputUri,
           experiments: {
-            modelName: "veo-exp-video-transform",
+            modelName: MODELS.VIDEO_TRANSFORM,
             videoTransformStrength: strength,
             numDiffusionSteps: steps,
             ...(maskVideoUrl ? { videoTransformMaskGcsUri: getGcsUri(maskVideoUrl) } : {}),
@@ -253,16 +174,16 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
         <div className="space-y-2">
           <SectionLabel>Input Video</SectionLabel>
           <div
-            onClick={() => !isUploadingVideo && !selectedVideoUrl && videoFileInputRef.current?.click()}
+            onClick={() => !videoUpload.isUploading && !selectedVideoUrl && videoFileInputRef.current?.click()}
             className={`relative aspect-video rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-3 transition-colors
-              ${isUploadingVideo ? "border-blue-300 bg-blue-50 cursor-not-allowed" :
+              ${videoUpload.isUploading ? "border-blue-300 bg-blue-50 cursor-not-allowed" :
                 selectedVideoUrl ? "border-slate-200 bg-slate-50 p-0 overflow-hidden cursor-default" :
                 "border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 cursor-pointer"}`}
           >
-            {isUploadingVideo ? (
+            {videoUpload.isUploading ? (
               <div className="flex flex-col items-center gap-2">
                 <Loader2 size={28} className="text-blue-500 animate-spin" />
-                <p className="text-xs font-bold text-slate-600">{Math.round(videoUploadProgress)}% Uploading…</p>
+                <p className="text-xs font-bold text-slate-600">{Math.round(videoUpload.progress)}% Uploading…</p>
               </div>
             ) : selectedVideoUrl ? (
               <>
@@ -287,12 +208,18 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
               </>
             )}
           </div>
-          {videoUploadError && (
+          {videoUpload.error && (
             <div className="flex items-center gap-1.5 text-red-500 text-[10px] font-medium bg-red-50 px-3 py-2 rounded-lg">
-              <AlertCircle size={13} /> {videoUploadError}
+              <AlertCircle size={13} /> {videoUpload.error}
             </div>
           )}
-          <input ref={videoFileInputRef} type="file" accept="video/*" className="hidden" onChange={handleVideoUpload} />
+          <input ref={videoFileInputRef} type="file" accept="video/*" className="hidden" onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              await videoUpload.upload(file);
+              if (videoFileInputRef.current) videoFileInputRef.current.value = "";
+            }
+          }} />
         </div>
 
         {/* Media library — only shown when nothing selected */}
@@ -337,13 +264,13 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
             )}
           </div>
           <div
-            onClick={() => !isUploadingImage && imageFileInputRef.current?.click()}
+            onClick={() => !imageUpload.isUploading && imageFileInputRef.current?.click()}
             className={`relative h-24 rounded-xl border-2 border-dashed flex items-center justify-center gap-3 transition-colors cursor-pointer overflow-hidden
-              ${isUploadingImage ? "border-blue-300 bg-blue-50 cursor-not-allowed" :
+              ${imageUpload.isUploading ? "border-blue-300 bg-blue-50 cursor-not-allowed" :
                 controlImageUrl ? "border-slate-200 p-0" :
                 "border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300"}`}
           >
-            {isUploadingImage ? (
+            {imageUpload.isUploading ? (
               <Loader2 size={20} className="text-blue-500 animate-spin" />
             ) : controlImageUrl ? (
               <>
@@ -357,12 +284,18 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
               </div>
             )}
           </div>
-          {imageUploadError && (
+          {imageUpload.error && (
             <div className="flex items-center gap-1.5 text-red-500 text-[10px] font-medium bg-red-50 px-3 py-2 rounded-lg">
-              <AlertCircle size={13} /> {imageUploadError}
+              <AlertCircle size={13} /> {imageUpload.error}
             </div>
           )}
-          <input ref={imageFileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+          <input ref={imageFileInputRef} type="file" accept="image/*" className="hidden" onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              await imageUpload.upload(file);
+              if (imageFileInputRef.current) imageFileInputRef.current.value = "";
+            }
+          }} />
         </div>
 
         {/* Mask Video (optional) */}
@@ -412,11 +345,11 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
                     </button>
                   )}
                   <button
-                    onClick={() => !isUploadingMask && maskFileInputRef.current?.click()}
+                    onClick={() => !maskUpload.isUploading && maskFileInputRef.current?.click()}
                     className="flex-1 py-2 border border-dashed border-slate-300 rounded-lg text-[11px] font-semibold text-slate-500 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5"
                   >
-                    {isUploadingMask ? (
-                      <><Loader2 size={12} className="animate-spin" /> {Math.round(maskUploadProgress)}%</>
+                    {maskUpload.isUploading ? (
+                      <><Loader2 size={12} className="animate-spin" /> {Math.round(maskUpload.progress)}%</>
                     ) : (
                       <><Upload size={12} /> Upload Mask Video</>
                     )}
@@ -457,7 +390,7 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
                     </div>
                   )}
                   <button
-                    onClick={() => !isUploadingMask && maskFileInputRef.current?.click()}
+                    onClick={() => !maskUpload.isUploading && maskFileInputRef.current?.click()}
                     className="w-full py-2 border border-dashed border-slate-300 rounded-lg text-[11px] font-semibold text-slate-500 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5"
                   >
                     <Upload size={12} /> Upload Mask Video
@@ -467,12 +400,18 @@ const TransformPanel = ({ onGenerate, onVideoSelect }: TransformPanelProps) => {
             </>
           )}
 
-          {maskUploadError && (
+          {maskUpload.error && (
             <div className="flex items-center gap-1.5 text-red-500 text-[10px] font-medium bg-red-50 px-3 py-2 rounded-lg">
-              <AlertCircle size={13} /> {maskUploadError}
+              <AlertCircle size={13} /> {maskUpload.error}
             </div>
           )}
-          <input ref={maskFileInputRef} type="file" accept="video/*" className="hidden" onChange={handleMaskUpload} />
+          <input ref={maskFileInputRef} type="file" accept="video/*" className="hidden" onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              await maskUpload.upload(file);
+              if (maskFileInputRef.current) maskFileInputRef.current.value = "";
+            }
+          }} />
         </div>
 
         {/* Control Prompt */}

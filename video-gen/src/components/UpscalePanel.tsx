@@ -3,27 +3,25 @@
 import React, { useRef, useState, useEffect } from "react";
 import {
   Upload,
-  Video as VideoIcon,
   Maximize2,
   Sparkles,
   Loader2,
   CheckCircle,
   AlertCircle,
-  PlayCircle,
   X
 } from "lucide-react";
-import { storage, db } from "@/lib/firebase";
-import { ref, listAll, getDownloadURL, uploadBytesResumable } from "firebase/storage";
-import { collection, addDoc, serverTimestamp, where } from "firebase/firestore";
+import { where } from "firebase/firestore";
 import { useConfig } from "@/context/ConfigContext";
 import { useProject } from "@/context/ProjectContext";
-import { formatBytes, detectAspectRatioFromFile, validateVideoConstraints } from "@/utils/time";
 import { getGcsUri } from "@/utils/gcs";
 import { useVideoLibrary } from "@/hooks/useVideoLibrary";
+import { useFileUpload } from "@/hooks/useFileUpload";
 import { PanelHeader } from "@/components/ui/PanelHeader";
 import { VideoThumbnailCard } from "@/components/ui/VideoThumbnailCard";
 import { LoadMoreButton } from "@/components/ui/LoadMoreButton";
 import { SectionLabel } from "@/components/ui/SectionLabel";
+import { COLLECTIONS, STORAGE_PATHS, DEFAULTS, MODELS, MIME } from "@/constants";
+import { generateTimestamp } from "@/utils/time";
 
 interface UpscalePanelProps {
   onGenerate?: (payload: any, isLongRunning: boolean) => void;
@@ -36,10 +34,22 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Video library
-  const { videos, setVideos, loadingAssets, loadingMore, hasMore, fetchVideos, loadMoreVideos } = useVideoLibrary(
+  const { videos, loadingAssets, loadingMore, hasMore, fetchVideos, loadMoreVideos } = useVideoLibrary(
     currentProjectId,
     [where("isUpscaleOutput", "==", false)]
   );
+
+  const videoUpload = useFileUpload({
+    storagePath: STORAGE_PATHS.VIDEOS,
+    firestoreCollection: COLLECTIONS.VIDEOS,
+    accept: "video",
+    projectId: currentProjectId,
+    extraDocFields: { isUpscaleOutput: false },
+    onSuccess: async (url) => {
+      selectVideo(url);
+      await fetchVideos();
+    },
+  });
 
   // Selection
   const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
@@ -63,15 +73,10 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
     if (url) detectAndSetAspectRatio(url);
   };
 
-  // Upload state
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-
   // Options
-  const [resolution, setResolution] = useState<"1080p" | "4k">("4k");
-  const [compressionQuality, setCompressionQuality] = useState<"optimized" | "lossless" | "lossless_16bit_png">("optimized");
-  const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16">("16:9");
+  const [resolution, setResolution] = useState<"1080p" | "4k">(DEFAULTS.RESOLUTION as "4k");
+  const [compressionQuality, setCompressionQuality] = useState<"optimized" | "lossless" | "lossless_16bit_png">(DEFAULTS.COMPRESSION_QUALITY as "optimized");
+  const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16">(DEFAULTS.ASPECT_RATIO as "16:9");
 
   // Submit state
   const [submitting, setSubmitting] = useState(false);
@@ -80,51 +85,6 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
 
   useEffect(() => { fetchVideos(); }, [fetchVideos, currentProjectId]);
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("video/")) { setUploadError("Please select a valid video file."); return; }
-
-    const validationError = await validateVideoConstraints(file);
-    if (validationError) { setUploadError(validationError); return; }
-
-    setIsUploading(true);
-    setUploadProgress(0);
-    setUploadError(null);
-
-    const detectedRatio = await detectAspectRatioFromFile(file);
-
-    const storageRef = ref(storage, `videos/${Date.now()}_${file.name}`);
-    const task = uploadBytesResumable(storageRef, file);
-
-    task.on("state_changed",
-      snap => setUploadProgress((snap.bytesTransferred / snap.totalBytes) * 100),
-      err => { setUploadError("Upload failed: " + err.message); setIsUploading(false); },
-      async () => {
-        try {
-          const url = await getDownloadURL(task.snapshot.ref);
-          await addDoc(collection(db, "videos"), {
-            name: file.name,
-            url: url,
-            type: file.type,
-            size: file.size,
-            aspectRatio: detectedRatio,
-            isUpscaleOutput: false,
-            projectId: currentProjectId,
-            createdAt: serverTimestamp(),
-          });
-          selectVideo(url);
-          await fetchVideos();
-        } catch (e) {
-          console.error("Error saving video record", e);
-        } finally {
-          setIsUploading(false);
-          if (fileInputRef.current) fileInputRef.current.value = "";
-        }
-      }
-    );
-  };
-
   const handleSubmit = async () => {
     if (!selectedUrl) return;
     setSubmitting(true);
@@ -132,15 +92,15 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
     setConfirmed(false);
 
     try {
-      const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19).replace("T", "_");
+      const timestamp = generateTimestamp();
       const outputUri = `gs://${config.gcsBucket}/${config.outputFolder}/video_${timestamp}`;
 
       const selectedVideo = videos.find(v => v.url === selectedUrl);
       const payload = {
         _inputFileSize: selectedVideo?.size ?? null,
         instances: [{
-          video: { gcsUri: getGcsUri(selectedUrl), mimeType: "video/mp4" },
-          fps: 24
+          video: { gcsUri: getGcsUri(selectedUrl), mimeType: MIME.VIDEO_MP4 },
+          fps: DEFAULTS.FPS
         }],
         parameters: {
           task: "upscale",
@@ -148,7 +108,7 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
           resolution,
           aspectRatio,
           storageUri: outputUri,
-          experiments: { modelName: "veo3p1_upscale" }
+          experiments: { modelName: MODELS.UPSCALE }
         }
       };
 
@@ -170,16 +130,16 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
 
         {/* Drop / upload zone */}
         <div
-          onClick={() => !isUploading && fileInputRef.current?.click()}
+          onClick={() => !videoUpload.isUploading && fileInputRef.current?.click()}
           className={`relative aspect-video rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-3 transition-colors cursor-pointer
-            ${isUploading ? "border-blue-300 bg-blue-50 cursor-not-allowed" :
+            ${videoUpload.isUploading ? "border-blue-300 bg-blue-50 cursor-not-allowed" :
               selectedUrl ? "border-slate-200 bg-slate-50 p-0 overflow-hidden" :
               "border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300"}`}
         >
-          {isUploading ? (
+          {videoUpload.isUploading ? (
             <div className="flex flex-col items-center gap-2">
               <Loader2 size={28} className="text-blue-500 animate-spin" />
-              <p className="text-xs font-bold text-slate-600">{Math.round(uploadProgress)}% Uploading…</p>
+              <p className="text-xs font-bold text-slate-600">{Math.round(videoUpload.progress)}% Uploading…</p>
             </div>
           ) : selectedUrl ? (
             <>
@@ -212,12 +172,18 @@ const UpscalePanel = ({ onGenerate, onVideoSelect }: UpscalePanelProps) => {
             </>
           )}
         </div>
-        {uploadError && (
+        {videoUpload.error && (
           <div className="flex items-center gap-2 text-red-500 text-[10px] font-medium bg-red-50 px-3 py-2 rounded-lg">
-            <AlertCircle size={13} /> {uploadError}
+            <AlertCircle size={13} /> {videoUpload.error}
           </div>
         )}
-        <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={handleUpload} />
+        <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={async (e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            await videoUpload.upload(file);
+            if (fileInputRef.current) fileInputRef.current.value = "";
+          }
+        }} />
 
         {/* Media library — videos only */}
         <div className="space-y-2">

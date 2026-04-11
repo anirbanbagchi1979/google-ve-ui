@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useCallback, useEffect } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
   Upload,
   Drama,
@@ -18,15 +18,17 @@ import { storage, db } from "@/lib/firebase";
 import { ref, getDownloadURL, uploadBytesResumable } from "firebase/storage";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { useVideoLibrary } from "@/hooks/useVideoLibrary";
+import { useFileUpload } from "@/hooks/useFileUpload";
 import { useConfig } from "@/context/ConfigContext";
 import { useProject } from "@/context/ProjectContext";
 import { getGcsUri } from "@/utils/gcs";
-import { formatBytes, detectAspectRatioFromFile, validateVideoConstraints, getVideoDimensions, resizeImageToMatchVideo } from "@/utils/time";
+import { getVideoDimensions, resizeImageToMatchVideo } from "@/utils/time";
 import { buildPerfEstimationPayload, buildPerfGenerationPayload } from "@/utils/payload";
 import { PanelHeader } from "@/components/ui/PanelHeader";
 import { VideoThumbnailCard } from "@/components/ui/VideoThumbnailCard";
 import { LoadMoreButton } from "@/components/ui/LoadMoreButton";
 import { SectionLabel } from "@/components/ui/SectionLabel";
+import { COLLECTIONS, STORAGE_PATHS, DEFAULTS } from "@/constants";
 
 import { usePerfMeshLibrary } from "@/hooks/usePerfMeshLibrary";
 import { usePerfCharacterLibrary } from "@/hooks/usePerfCharacterLibrary";
@@ -48,18 +50,12 @@ const PerformancePanel = ({ onGenerate, onVideoSelect }: PerformancePanelProps) 
   const videoFileInputRef = useRef<HTMLInputElement>(null);
   const { videos, loadingAssets, loadingMore, hasMore, fetchVideos, loadMoreVideos } = useVideoLibrary(currentProjectId);
   const [selectedVideoUrl, setSelectedVideoUrl] = useState<string | null>(null);
-  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
-  const [videoUploadProgress, setVideoUploadProgress] = useState(0);
-  const [videoUploadError, setVideoUploadError] = useState<string | null>(null);
-  const [extractionSeed, setExtractionSeed] = useState(777);
+  const [extractionSeed, setExtractionSeed] = useState<number>(DEFAULTS.SEED);
   const [showExtractSettings, setShowExtractSettings] = useState(false);
 
   // Step 1 — Use Mesh
   const meshFileInputRef = useRef<HTMLInputElement>(null);
   const { meshes, loading: loadingMeshes, loadingMore: loadingMoreMeshes, hasMore: hasMoreMeshes, fetchMeshes, loadMoreMeshes } = usePerfMeshLibrary(currentProjectId);
-  const [isUploadingMesh, setIsUploadingMesh] = useState(false);
-  const [meshUploadProgress, setMeshUploadProgress] = useState(0);
-  const [meshUploadError, setMeshUploadError] = useState<string | null>(null);
 
   // Shared: selected mesh (from either tab or from job tracker)
   const [selectedMeshGcsUri, setSelectedMeshGcsUri] = useState<string | null>(null);
@@ -78,96 +74,47 @@ const PerformancePanel = ({ onGenerate, onVideoSelect }: PerformancePanelProps) 
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [imageUploadError, setImageUploadError] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
-  const [generationSeed, setGenerationSeed] = useState(78);
-  const [compressionQuality, setCompressionQuality] = useState<"optimized" | "lossless">("optimized");
+  const [generationSeed, setGenerationSeed] = useState<number>(DEFAULTS.PERF_GENERATION_SEED);
+  const [compressionQuality, setCompressionQuality] = useState<"optimized" | "lossless">(DEFAULTS.COMPRESSION_QUALITY as "optimized" | "lossless");
 
   // Submit states
   const [submitting, setSubmitting] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  const videoUpload = useFileUpload({
+    storagePath: STORAGE_PATHS.VIDEOS,
+    firestoreCollection: COLLECTIONS.VIDEOS,
+    accept: "video",
+    projectId: currentProjectId,
+    extraDocFields: { isUpscaleOutput: false },
+    onSuccess: async (url) => {
+      setSelectedVideoUrl(url);
+      try { setVideoDimensions(await getVideoDimensions(url)); } catch { /* fallback: no resize */ }
+      onVideoSelect?.(url, null, "Source Video", "");
+      await fetchVideos();
+    },
+  });
+
+  const meshUpload = useFileUpload({
+    storagePath: STORAGE_PATHS.PERF_MESHES,
+    firestoreCollection: COLLECTIONS.PERF_MESHES,
+    accept: "video",
+    projectId: currentProjectId,
+    extraDocFields: {},
+    onSuccess: async (url, gcsUri) => {
+      setSelectedMeshGcsUri(gcsUri);
+      setSelectedMeshUrl(url);
+      setSelectedMeshSourceVideoUrl(null);
+      onVideoSelect?.(url, null, "Blue Mesh", "");
+      await fetchMeshes();
+    },
+  });
+
   useEffect(() => { fetchVideos(); }, [fetchVideos, currentProjectId]);
   useEffect(() => { fetchMeshes(); }, [fetchMeshes]);
 
   // --- Upload handlers ---
-
-  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("video/")) { setVideoUploadError("Please select a valid video file."); return; }
-
-    const validationError = await validateVideoConstraints(file);
-    if (validationError) { setVideoUploadError(validationError); return; }
-
-    setIsUploadingVideo(true);
-    setVideoUploadProgress(0);
-    setVideoUploadError(null);
-
-    const detectedRatio = await detectAspectRatioFromFile(file);
-    const storageRef = ref(storage, `videos/${Date.now()}_${file.name}`);
-    const task = uploadBytesResumable(storageRef, file);
-
-    task.on("state_changed",
-      snap => setVideoUploadProgress((snap.bytesTransferred / snap.totalBytes) * 100),
-      err => { setVideoUploadError("Upload failed: " + err.message); setIsUploadingVideo(false); },
-      async () => {
-        try {
-          const url = await getDownloadURL(task.snapshot.ref);
-          await addDoc(collection(db, "videos"), {
-            name: file.name, url, type: file.type, size: file.size,
-            aspectRatio: detectedRatio, isUpscaleOutput: false,
-            projectId: currentProjectId, createdAt: serverTimestamp(),
-          });
-          setSelectedVideoUrl(url);
-          // Capture video dimensions for character image resizing
-          try { setVideoDimensions(await getVideoDimensions(url)); } catch { /* fallback: no resize */ }
-          onVideoSelect?.(url, null, "Source Video", "");
-          await fetchVideos();
-        } catch (e) { console.error(e); }
-        finally {
-          setIsUploadingVideo(false);
-          if (videoFileInputRef.current) videoFileInputRef.current.value = "";
-        }
-      }
-    );
-  };
-
-  const handleMeshUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("video/")) { setMeshUploadError("Please select a valid video file."); return; }
-
-    setIsUploadingMesh(true);
-    setMeshUploadProgress(0);
-    setMeshUploadError(null);
-
-    const storageRef = ref(storage, `perfMeshes/${Date.now()}_${file.name}`);
-    const task = uploadBytesResumable(storageRef, file);
-
-    task.on("state_changed",
-      snap => setMeshUploadProgress((snap.bytesTransferred / snap.totalBytes) * 100),
-      err => { setMeshUploadError("Upload failed: " + err.message); setIsUploadingMesh(false); },
-      async () => {
-        try {
-          const url = await getDownloadURL(task.snapshot.ref);
-          const gcsUri = getGcsUri(url);
-          await addDoc(collection(db, "perfMeshes"), {
-            name: file.name, url, gcsUri,
-            projectId: currentProjectId, createdAt: serverTimestamp(),
-          });
-          setSelectedMeshGcsUri(gcsUri);
-          setSelectedMeshUrl(url);
-          setSelectedMeshSourceVideoUrl(null);
-          onVideoSelect?.(url, null, "Blue Mesh", "");
-          await fetchMeshes();
-        } catch (e) { console.error(e); }
-        finally {
-          setIsUploadingMesh(false);
-          if (meshFileInputRef.current) meshFileInputRef.current.value = "";
-        }
-      }
-    );
-  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     let file = e.target.files?.[0];
@@ -186,7 +133,7 @@ const PerformancePanel = ({ onGenerate, onVideoSelect }: PerformancePanelProps) 
       }
     }
 
-    const storageRef = ref(storage, `images/${Date.now()}_${file.name}`);
+    const storageRef = ref(storage, `${STORAGE_PATHS.IMAGES}/${Date.now()}_${file.name}`);
     const task = uploadBytesResumable(storageRef, file);
 
     task.on("state_changed",
@@ -201,12 +148,15 @@ const PerformancePanel = ({ onGenerate, onVideoSelect }: PerformancePanelProps) 
           setCharacterImageGcsUri(gcsUri);
           setCharacterImageMimeType(mimeType);
           // Save to perfCharacters collection for reuse
-          await addDoc(collection(db, "perfCharacters"), {
+          await addDoc(collection(db, COLLECTIONS.PERF_CHARACTERS), {
             name: file!.name, url, gcsUri, mimeType,
             projectId: currentProjectId, createdAt: serverTimestamp(),
           });
           await fetchCharacters();
-        } catch (e) { console.error(e); }
+        } catch (e) {
+          console.error("[PerformancePanel] Character image upload failed:", e);
+          setImageUploadError(e instanceof Error ? e.message : "Failed to save character image.");
+        }
         finally {
           setIsUploadingImage(false);
           if (imageFileInputRef.current) imageFileInputRef.current.value = "";
@@ -347,16 +297,16 @@ const PerformancePanel = ({ onGenerate, onVideoSelect }: PerformancePanelProps) 
                 <div className="space-y-2">
                   <SectionLabel>Source Video</SectionLabel>
                   <div
-                    onClick={() => !isUploadingVideo && !selectedVideoUrl && videoFileInputRef.current?.click()}
+                    onClick={() => !videoUpload.isUploading && !selectedVideoUrl && videoFileInputRef.current?.click()}
                     className={`relative aspect-video rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-3 transition-colors
-                      ${isUploadingVideo ? "border-blue-300 bg-blue-50 cursor-not-allowed" :
+                      ${videoUpload.isUploading ? "border-blue-300 bg-blue-50 cursor-not-allowed" :
                         selectedVideoUrl ? "border-slate-200 bg-slate-50 p-0 overflow-hidden cursor-default" :
                         "border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 cursor-pointer"}`}
                   >
-                    {isUploadingVideo ? (
+                    {videoUpload.isUploading ? (
                       <div className="flex flex-col items-center gap-2">
                         <Loader2 size={28} className="text-blue-500 animate-spin" />
-                        <p className="text-xs font-bold text-slate-600">{Math.round(videoUploadProgress)}% Uploading…</p>
+                        <p className="text-xs font-bold text-slate-600">{Math.round(videoUpload.progress)}% Uploading…</p>
                       </div>
                     ) : selectedVideoUrl ? (
                       <>
@@ -381,12 +331,18 @@ const PerformancePanel = ({ onGenerate, onVideoSelect }: PerformancePanelProps) 
                       </>
                     )}
                   </div>
-                  {videoUploadError && (
+                  {videoUpload.error && (
                     <div className="flex items-center gap-1.5 text-red-500 text-[10px] font-medium bg-red-50 px-3 py-2 rounded-lg">
-                      <AlertCircle size={13} /> {videoUploadError}
+                      <AlertCircle size={13} /> {videoUpload.error}
                     </div>
                   )}
-                  <input ref={videoFileInputRef} type="file" accept="video/*" className="hidden" onChange={handleVideoUpload} />
+                  <input ref={videoFileInputRef} type="file" accept="video/*" className="hidden" onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      await videoUpload.upload(file);
+                      if (videoFileInputRef.current) videoFileInputRef.current.value = "";
+                    }
+                  }} />
                 </div>
 
                 {/* Media library */}
@@ -478,15 +434,15 @@ const PerformancePanel = ({ onGenerate, onVideoSelect }: PerformancePanelProps) 
                     </div>
                   ) : (
                     <div
-                      onClick={() => !isUploadingMesh && meshFileInputRef.current?.click()}
+                      onClick={() => !meshUpload.isUploading && meshFileInputRef.current?.click()}
                       className={`relative aspect-video rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-3 transition-colors
-                        ${isUploadingMesh ? "border-blue-300 bg-blue-50 cursor-not-allowed" :
+                        ${meshUpload.isUploading ? "border-blue-300 bg-blue-50 cursor-not-allowed" :
                           "border-blue-200 bg-blue-50/30 hover:bg-blue-50 hover:border-blue-300 cursor-pointer"}`}
                     >
-                      {isUploadingMesh ? (
+                      {meshUpload.isUploading ? (
                         <div className="flex flex-col items-center gap-2">
                           <Loader2 size={28} className="text-blue-500 animate-spin" />
-                          <p className="text-xs font-bold text-slate-600">{Math.round(meshUploadProgress)}% Uploading…</p>
+                          <p className="text-xs font-bold text-slate-600">{Math.round(meshUpload.progress)}% Uploading…</p>
                         </div>
                       ) : (
                         <>
@@ -502,12 +458,18 @@ const PerformancePanel = ({ onGenerate, onVideoSelect }: PerformancePanelProps) 
                     </div>
                   )}
 
-                  {meshUploadError && (
+                  {meshUpload.error && (
                     <div className="flex items-center gap-1.5 text-red-500 text-[10px] font-medium bg-red-50 px-3 py-2 rounded-lg">
-                      <AlertCircle size={13} /> {meshUploadError}
+                      <AlertCircle size={13} /> {meshUpload.error}
                     </div>
                   )}
-                  <input ref={meshFileInputRef} type="file" accept="video/*" className="hidden" onChange={handleMeshUpload} />
+                  <input ref={meshFileInputRef} type="file" accept="video/*" className="hidden" onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      await meshUpload.upload(file);
+                      if (meshFileInputRef.current) meshFileInputRef.current.value = "";
+                    }
+                  }} />
                 </div>
 
                 {/* Mesh Library */}
