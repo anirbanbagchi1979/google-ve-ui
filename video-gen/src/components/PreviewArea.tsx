@@ -9,7 +9,8 @@ import {
   RefreshCcw,
   Eye,
   EyeOff,
-  Loader2
+  Loader2,
+  Layers
 } from "lucide-react";
 
 interface PreviewAreaProps {
@@ -28,7 +29,9 @@ const PreviewArea = ({ videoUrl, originalVideoUrl, tertiaryVideoUrl, leftLabel =
   const videoRef = useRef<HTMLVideoElement>(null);
   const origVideoRef = useRef<HTMLVideoElement>(null);
   const tertiaryVideoRef = useRef<HTMLVideoElement>(null);
-  const [viewMode, setViewMode] = useState<"2up" | "3up">("3up");
+  const [viewMode, setViewMode] = useState<"2up" | "3up" | "overlay">("3up");
+  const [overlayOpacity, setOverlayOpacity] = useState(0.5);
+  const [overlayBlendMode, setOverlayBlendMode] = useState<"normal" | "difference">("normal");
 
   // Zoom & Pan State
   const [scale, setScale] = useState(1);
@@ -75,6 +78,53 @@ const PreviewArea = ({ videoUrl, originalVideoUrl, tertiaryVideoUrl, leftLabel =
       if (tertiaryVideoRef.current) tertiaryVideoRef.current.currentTime = videoRef.current.currentTime;
     }
   }, [isPlaying]);
+
+  // Continuous sync loop: keep secondary videos locked to the primary's
+  // currentTime. Necessary for overlay mode (where even 1 frame of drift
+  // is visually obvious) and also keeps split views in sync across loop
+  // boundaries. Only runs while something is playing so it doesn't burn
+  // cycles when paused.
+  useEffect(() => {
+    if (!isPlaying) return;
+    const DRIFT_THRESHOLD = 0.04; // ~1 frame @ 24fps; tighter in overlay
+    const threshold = viewMode === "overlay" ? 0.02 : DRIFT_THRESHOLD;
+
+    let raf = 0;
+    const tick = () => {
+      const primary = videoRef.current;
+      if (primary) {
+        const t = primary.currentTime;
+        const orig = origVideoRef.current;
+        if (orig && Math.abs(orig.currentTime - t) > threshold) {
+          orig.currentTime = t;
+        }
+        const tert = tertiaryVideoRef.current;
+        if (tert && Math.abs(tert.currentTime - t) > threshold) {
+          tert.currentTime = t;
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [isPlaying, viewMode, videoUrl, originalVideoUrl, tertiaryVideoUrl]);
+
+  // Hard re-sync whenever the primary loops: the `loop` attribute resets
+  // each video independently, so the top-layer video can wrap a few frames
+  // before or after the base. Snap everyone back to 0 on the primary's
+  // seeked-to-start event.
+  useEffect(() => {
+    const primary = videoRef.current;
+    if (!primary) return;
+    const onSeeked = () => {
+      if (primary.currentTime < 0.1) {
+        if (origVideoRef.current) origVideoRef.current.currentTime = 0;
+        if (tertiaryVideoRef.current) tertiaryVideoRef.current.currentTime = 0;
+      }
+    };
+    primary.addEventListener("seeked", onSeeked);
+    return () => primary.removeEventListener("seeked", onSeeked);
+  }, [videoUrl]);
 
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
@@ -124,9 +174,11 @@ const PreviewArea = ({ videoUrl, originalVideoUrl, tertiaryVideoUrl, leftLabel =
     );
   }
 
+  const hasTwoVideos = !!(videoUrl && originalVideoUrl);
   const hasThreeVideos = !!(videoUrl && originalVideoUrl && tertiaryVideoUrl);
-  const isThreeUp = hasThreeVideos && viewMode === "3up" && showOriginal;
-  const isSplit = isThreeUp || !!(videoUrl && originalVideoUrl && showOriginal);
+  const isOverlay = hasTwoVideos && viewMode === "overlay" && showOriginal;
+  const isThreeUp = hasThreeVideos && viewMode === "3up" && showOriginal && !isOverlay;
+  const isSplit = !isOverlay && (isThreeUp || !!(videoUrl && originalVideoUrl && showOriginal));
 
   const zoomStyle = {
     transform: `scale(${scale}) translate(${position.x}px, ${position.y}px)`,
@@ -166,6 +218,50 @@ const PreviewArea = ({ videoUrl, originalVideoUrl, tertiaryVideoUrl, leftLabel =
         />
 
         {/* Video Player(s) Container */}
+        {isOverlay ? (
+          <div className="w-full h-full relative">
+            {/* Base (original) video */}
+            <div className="absolute inset-0 h-full w-full overflow-hidden pointer-events-none">
+              <video
+                ref={origVideoRef}
+                src={originalVideoUrl!}
+                className="w-full h-full object-contain"
+                style={zoomStyle}
+                loop
+                muted
+                playsInline
+                preload="auto"
+              />
+            </div>
+            {/* Top (output) video, blended over base */}
+            <div
+              className="absolute inset-0 h-full w-full overflow-hidden pointer-events-none"
+              style={{ opacity: overlayOpacity, mixBlendMode: overlayBlendMode }}
+            >
+              <video
+                ref={videoRef}
+                src={videoUrl}
+                className="w-full h-full object-contain"
+                style={zoomStyle}
+                loop
+                muted={isMuted}
+                playsInline
+                preload="auto"
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+                onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+                onCanPlay={(e) => {
+                  setIsLoading(false);
+                  e.currentTarget.play();
+                  setIsPlaying(true);
+                  if (origVideoRef.current) origVideoRef.current.play();
+                  if (tertiaryVideoRef.current) tertiaryVideoRef.current.play();
+                }}
+              />
+            </div>
+          </div>
+        ) : (
         <div className={isSplit ? "w-full h-full flex divide-x divide-slate-800" : "w-full h-full"}>
 
           {isSplit && (
@@ -223,6 +319,7 @@ const PreviewArea = ({ videoUrl, originalVideoUrl, tertiaryVideoUrl, leftLabel =
           </div>
 
         </div>
+        )}
 
         {/* Loading overlay */}
         {isLoading && (
@@ -278,8 +375,8 @@ const PreviewArea = ({ videoUrl, originalVideoUrl, tertiaryVideoUrl, leftLabel =
           </div>
         </div>
 
-        {/* 2-up / 3-up toggle (only when 3 videos available) */}
-        {hasThreeVideos && showOriginal && (
+        {/* View-mode toggle (shown whenever 2+ videos available) */}
+        {hasTwoVideos && showOriginal && (
           <div className="absolute bottom-6 right-8 flex items-center gap-1 bg-black/60 backdrop-blur-xl rounded-lg border border-white/10 p-1 z-30">
             <button
               onClick={() => setViewMode("2up")}
@@ -289,14 +386,68 @@ const PreviewArea = ({ videoUrl, originalVideoUrl, tertiaryVideoUrl, leftLabel =
             >
               2-up
             </button>
+            {hasThreeVideos && (
+              <button
+                onClick={() => setViewMode("3up")}
+                className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all ${
+                  viewMode === "3up" ? "bg-white/20 text-white" : "text-white/40 hover:text-white/70"
+                }`}
+              >
+                3-up
+              </button>
+            )}
             <button
-              onClick={() => setViewMode("3up")}
-              className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all ${
-                viewMode === "3up" ? "bg-white/20 text-white" : "text-white/40 hover:text-white/70"
+              onClick={() => setViewMode("overlay")}
+              className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all flex items-center gap-1 ${
+                viewMode === "overlay" ? "bg-white/20 text-white" : "text-white/40 hover:text-white/70"
               }`}
+              title="Overlay videos to spot artifacts"
             >
-              3-up
+              <Layers size={10} /> Overlay
             </button>
+          </div>
+        )}
+
+        {/* Overlay-mode controls: opacity slider + blend-mode toggle */}
+        {isOverlay && (
+          <div className="absolute top-20 right-8 z-30 flex flex-col items-stretch gap-2 bg-black/60 backdrop-blur-xl rounded-lg border border-white/10 p-3 w-56">
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] font-bold uppercase tracking-widest text-white/60">Opacity</span>
+              <span className="text-[10px] font-mono text-white/90">{Math.round(overlayOpacity * 100)}%</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={overlayOpacity}
+              onChange={(e) => setOverlayOpacity(parseFloat(e.target.value))}
+              className="w-full accent-blue-400"
+            />
+            <div className="flex items-center gap-1 pt-1">
+              <button
+                onClick={() => setOverlayBlendMode("normal")}
+                className={`flex-1 px-2 py-1 rounded text-[9px] font-bold uppercase tracking-widest transition-all ${
+                  overlayBlendMode === "normal" ? "bg-white/20 text-white" : "text-white/40 hover:text-white/70"
+                }`}
+              >
+                Fade
+              </button>
+              <button
+                onClick={() => setOverlayBlendMode("difference")}
+                className={`flex-1 px-2 py-1 rounded text-[9px] font-bold uppercase tracking-widest transition-all ${
+                  overlayBlendMode === "difference" ? "bg-white/20 text-white" : "text-white/40 hover:text-white/70"
+                }`}
+                title="Pixel difference — black = identical, bright = changed"
+              >
+                Diff
+              </button>
+            </div>
+            <div className="flex items-center justify-between gap-1 pt-1 border-t border-white/10">
+              <span className="text-[9px] text-white/40 font-mono truncate">{leftLabel}</span>
+              <span className="text-white/30">↔</span>
+              <span className="text-[9px] text-blue-400 font-mono truncate">{rightLabel}</span>
+            </div>
           </div>
         )}
 
