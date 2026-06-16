@@ -28,7 +28,7 @@ interface ConfigContextType {
 }
 
 const DEFAULT_CONFIG: AppConfig = {
-  projectId: process.env.NEXT_PUBLIC_GCP_PROJECT_ID || "",
+  projectId: process.env.NEXT_PUBLIC_GCP_PROJECT_ID || "rr-genai-sbox1",
   location: API.DEFAULT_REGION,
   gcsBucket: process.env.NEXT_PUBLIC_GCS_BUCKET || "",
   outputFolder: DEFAULTS.OUTPUT_FOLDER,
@@ -60,6 +60,12 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
         // Auto-fix migration for invalid upscale model ID
         if (parsed.upscaleModel === "veo3p1_upscale") {
           parsed.upscaleModel = "veo-experimental";
+          localStorage.setItem(STORAGE_KEYS.DASHBOARD_CONFIG, JSON.stringify(parsed));
+        }
+        
+        // Auto-fix migration for retired arenaroyale project
+        if (parsed.projectId === "arenaroyale") {
+          parsed.projectId = "rr-genai-sbox1";
           localStorage.setItem(STORAGE_KEYS.DASHBOARD_CONFIG, JSON.stringify(parsed));
         }
         
