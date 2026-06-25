@@ -17,6 +17,8 @@ import {
   Drama,
   Film,
   Mic,
+  Grid3x3,
+  GalleryHorizontalEnd,
 } from "lucide-react";
 import { PanelHeader } from "@/components/ui/PanelHeader";
 
@@ -49,6 +51,8 @@ const TYPE_ICON: Record<string, React.ReactNode> = {
   "perf-estimation": <Drama size={13} className="text-blue-400 shrink-0" />,
   "perf-generation": <Drama size={13} className="text-blue-400 shrink-0" />,
   "a2v-generation": <Mic size={13} className="text-violet-400 shrink-0" />,
+  "texture-generation": <Grid3x3 size={13} className="text-emerald-400 shrink-0" />,
+  "keyframe-generation": <GalleryHorizontalEnd size={13} className="text-amber-400 shrink-0" />,
 };
 
 const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog, onVideoSelect, onStatusUpdate }: OperationsPanelProps) => {

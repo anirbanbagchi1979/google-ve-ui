@@ -6,6 +6,8 @@ import {
   Clapperboard,
   Drama,
   Mic,
+  Grid3x3,
+  GalleryHorizontalEnd,
   ListChecks,
   Settings,
   ShieldCheck,
@@ -22,6 +24,8 @@ const Sidebar = ({ activeView, onSelect }: SidebarProps) => {
     { id: "transform",  icon: <Clapperboard size={20} />, label: "Transform" },
     { id: "perf",       icon: <Drama size={20} />,        label: "Performance" },
     { id: "dialogue",   icon: <Mic size={20} />,          label: "Dialogue" },
+    { id: "textures",   icon: <Grid3x3 size={20} />,     label: "Textures" },
+    { id: "keyframes",  icon: <GalleryHorizontalEnd size={20} />, label: "Keyframes" },
     { id: "tasks",      icon: <ListChecks size={20} />,   label: "Tasks" },
   ];
 

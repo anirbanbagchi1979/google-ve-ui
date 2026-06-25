@@ -112,7 +112,7 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
       
       for (const op of runningOps) {
         try {
-          const modelName = op.modelUsed || (op.type === "upscale" ? configRef.current.upscaleModel : (op.type === "perf-estimation" || op.type === "perf-generation" || op.type === "a2v-generation") ? MODELS.EXPERIMENTAL : configRef.current.videoGenModel);
+          const modelName = op.modelUsed || (op.type === "upscale" ? configRef.current.upscaleModel : (op.type === "perf-estimation" || op.type === "perf-generation" || op.type === "a2v-generation" || op.type === "texture-generation" || op.type === "keyframe-generation") ? MODELS.EXPERIMENTAL : configRef.current.videoGenModel);
           const endpoint = `https://${configRef.current.location}-aiplatform.googleapis.com/v1/projects/${configRef.current.projectId}/locations/${configRef.current.location}/publishers/google/models/${modelName}:fetchPredictOperation`;
 
           const response = await fetch("/api/proxy", {
@@ -146,7 +146,7 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
                 videos.find(v => v.mimeType === "video/mp4")?.gcsUri ||
                 (videos[0]?.gcsUri ? videos[0].gcsUri + ".mp4" : undefined);
 
-              if ((op.type === "upscale" || op.type === "transform" || op.type === "perf-generation" || op.type === "a2v-generation") && outputGcsUri) {
+              if ((op.type === "upscale" || op.type === "transform" || op.type === "perf-generation" || op.type === "a2v-generation" || op.type === "texture-generation" || op.type === "keyframe-generation") && outputGcsUri) {
                 // Regular video outputs → videos collection
                 let outputUrl: string;
                 try { outputUrl = await getAuthenticatedUrl(outputGcsUri); } catch { outputUrl = gcsToFirebaseUrl(outputGcsUri); }
@@ -154,6 +154,8 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
                   name: op.type === "upscale" ? "Upscale output"
                     : op.type === "transform" ? "Transform output"
                     : op.type === "a2v-generation" ? "Dialogue output"
+                    : op.type === "texture-generation" ? "Texture output"
+                    : op.type === "keyframe-generation" ? "Keyframe output"
                     : "Performance output",
                   url: outputUrl,
                   type: "video/mp4",
@@ -240,11 +242,21 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
       imageGcsUri: instance.image?.gcsUri || null,
       imageUrl: payload._imageUrl || null,
       sharpness: instance.sharpness ?? null,
+      // Video Textures specific metadata
+      loop: ((experiments.seamless as Record<string, unknown> | undefined)?.loop as boolean | undefined) ?? null,
+      tessellateHorizontal: ((experiments.seamless as Record<string, unknown> | undefined)?.tessellateHorizontal as boolean | undefined) ?? null,
+      tessellateVertical: ((experiments.seamless as Record<string, unknown> | undefined)?.tessellateVertical as boolean | undefined) ?? null,
+      startFrameGcsUri: instance.image?.gcsUri || null,
+      startFrameUrl: payload._startFrameUrl || null,
+      lastFrameGcsUri: instance.lastFrame?.gcsUri || null,
+      lastFrameUrl: payload._lastFrameUrl || null,
+      // Multi-Keyframe specific metadata
+      conditioningFrameCount: ((experiments.conditioningFrames as unknown[]) || []).length || null,
     };
 
     try {
-      const { _model: metaModel, _inputFileSize: _ifs, _operationType: _opType, _inputVideoUrl: _ivUrl, _meshVideoUrl: _mvUrl, _characterImageUrl: _ciUrl, _sourceVideoUrl: _svUrl, _audioUrl: _auUrl, _imageUrl: _imUrl, ...apiPayload } = payload;
-      void _ifs; void _opType; void _ivUrl; void _mvUrl; void _ciUrl; void _svUrl; void _auUrl; void _imUrl;
+      const { _model: metaModel, _inputFileSize: _ifs, _operationType: _opType, _inputVideoUrl: _ivUrl, _meshVideoUrl: _mvUrl, _characterImageUrl: _ciUrl, _sourceVideoUrl: _svUrl, _audioUrl: _auUrl, _imageUrl: _imUrl, _startFrameUrl: _sfUrl, _lastFrameUrl: _lfUrl, _conditioningFrameUrls: _cfUrls, ...apiPayload } = payload;
+      void _ifs; void _opType; void _ivUrl; void _mvUrl; void _ciUrl; void _svUrl; void _auUrl; void _imUrl; void _sfUrl; void _lfUrl; void _cfUrls;
       const experimentModel = experiments.modelName as string | undefined;
       const modelUsed = experimentModel === MODELS.UPSCALE
         ? config.upscaleModel

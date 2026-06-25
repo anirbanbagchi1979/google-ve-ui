@@ -12,6 +12,8 @@ import UpscalePanel from "@/components/UpscalePanel";
 import TransformPanel from "@/components/TransformPanel";
 import PerformancePanel from "@/components/PerformancePanel";
 import DialoguePanel from "@/components/DialoguePanel";
+import TexturesPanel from "@/components/TexturesPanel";
+import KeyframePanel from "@/components/KeyframePanel";
 import AdminPanel from "@/components/AdminPanel";
 import { Settings, ShieldCheck } from "lucide-react";
 import { logout } from "@/lib/auth";
@@ -69,6 +71,10 @@ const AppContent = ({ isAdmin }: { isAdmin: boolean }) => {
               />
             ) : activeView === "dialogue" ? (
               <DialoguePanel onGenerate={handleGenerate} />
+            ) : activeView === "textures" ? (
+              <TexturesPanel onGenerate={handleGenerate} />
+            ) : activeView === "keyframes" ? (
+              <KeyframePanel onGenerate={handleGenerate} />
             ) : activeView === "tasks" ? (
               <OperationsPanel
                 operations={operations}

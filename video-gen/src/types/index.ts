@@ -11,7 +11,7 @@ export interface VideoAsset {
   createdAt: Timestamp | null;
 }
 
-export type OperationType = "generation" | "upscale" | "transform" | "perf-estimation" | "perf-generation" | "a2v-generation";
+export type OperationType = "generation" | "upscale" | "transform" | "perf-estimation" | "perf-generation" | "a2v-generation" | "texture-generation" | "keyframe-generation";
 
 export interface OperationResult {
   videos?: Array<{ gcsUri: string; mimeType?: string }>;
@@ -68,6 +68,16 @@ export interface Operation {
   imageGcsUri?: string;
   imageUrl?: string;
   sharpness?: number;
+  // Multi-Keyframe specific fields
+  conditioningFrameCount?: number;
+  // Video Textures specific fields
+  loop?: boolean;
+  tessellateHorizontal?: boolean;
+  tessellateVertical?: boolean;
+  startFrameGcsUri?: string;
+  startFrameUrl?: string;
+  lastFrameGcsUri?: string;
+  lastFrameUrl?: string;
 }
 
 export interface GenerationPayload {
@@ -78,6 +88,7 @@ export interface GenerationPayload {
     referenceAudios?: Array<{ audio: { gcsUri?: string; bytesBase64Encoded?: string; mimeType: string } }>;
     fps?: number;
     image?: { gcsUri?: string; bytesBase64Encoded?: string; mimeType: string };
+    lastFrame?: { gcsUri?: string; bytesBase64Encoded?: string; mimeType: string };
     sharpness?: number;
   }>;
   parameters?: {
@@ -100,6 +111,9 @@ export interface GenerationPayload {
   _sourceVideoUrl?: string;
   _audioUrl?: string;
   _imageUrl?: string;
+  _startFrameUrl?: string;
+  _lastFrameUrl?: string;
+  _conditioningFrameUrls?: Array<{ url: string; frameNum: number }>;
 }
 
 export interface PerfMesh {

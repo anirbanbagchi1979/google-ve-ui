@@ -11,6 +11,7 @@ export const MODELS = {
   PERF_GENERATION: "veo-exp-perf-generation",
   VIDEO_TRANSFORM: "veo-exp-video-transform",
   A2V_GENERATION: "veo-exp-a2v-generation",
+  VIDEO_TEXTURES: "veo-exp-video-textures",
 } as const;
 
 // --- API Endpoints & Config ---
