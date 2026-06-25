@@ -8,12 +8,20 @@
   },
   "hosting": {
     "site": "vexp-ui-bb",
-    "source": ".",
-    "codebase": "default",
+    "public": "public",
     "ignore": [
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "ssrvexpuibb",
+          "region": "us-central1"
+        }
+      }
     ]
   }
 }

@@ -11,7 +11,7 @@ export interface VideoAsset {
   createdAt: Timestamp | null;
 }
 
-export type OperationType = "generation" | "upscale" | "transform" | "perf-estimation" | "perf-generation";
+export type OperationType = "generation" | "upscale" | "transform" | "perf-estimation" | "perf-generation" | "a2v-generation";
 
 export interface OperationResult {
   videos?: Array<{ gcsUri: string; mimeType?: string }>;
@@ -62,6 +62,12 @@ export interface Operation {
   characterImageUrl?: string;
   sourceVideoUrl?: string;
   sourceEstimationOpId?: string;
+  // Audio-to-Video (dialogue) specific fields
+  audioGcsUri?: string;
+  audioUrl?: string;
+  imageGcsUri?: string;
+  imageUrl?: string;
+  sharpness?: number;
 }
 
 export interface GenerationPayload {
@@ -69,8 +75,10 @@ export interface GenerationPayload {
     prompt?: string;
     video?: { gcsUri: string; mimeType: string };
     referenceImages?: Array<{ image: { gcsUri: string; mimeType: string }; referenceType?: string }>;
+    referenceAudios?: Array<{ audio: { gcsUri?: string; bytesBase64Encoded?: string; mimeType: string } }>;
     fps?: number;
-    image?: { gcsUri: string; mimeType: string };
+    image?: { gcsUri?: string; bytesBase64Encoded?: string; mimeType: string };
+    sharpness?: number;
   }>;
   parameters?: {
     task?: string;
@@ -90,6 +98,8 @@ export interface GenerationPayload {
   _meshVideoUrl?: string;
   _characterImageUrl?: string;
   _sourceVideoUrl?: string;
+  _audioUrl?: string;
+  _imageUrl?: string;
 }
 
 export interface PerfMesh {

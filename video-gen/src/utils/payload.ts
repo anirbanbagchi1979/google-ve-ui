@@ -1,6 +1,7 @@
 // src/utils/payload.ts
 import { getGcsUri } from "./gcs";
 import { MODELS, DEFAULTS, STORAGE_PATHS, MIME } from "@/constants";
+import type { GenerationPayload } from "@/types";
 import { generateTimestamp } from "./time";
 
 interface AppConfig {
@@ -142,6 +143,54 @@ export const buildUpscalePayload = (gcsUri: string, config: AppConfig): object =
       aspectRatio: DEFAULTS.ASPECT_RATIO,
       storageUri: outputUri,
       experiments: { modelName: MODELS.UPSCALE },
+    },
+  };
+};
+
+/**
+ * Build a Vertex AI dialogue-driven (audio-to-video) generation payload.
+ */
+export const buildA2VGenerationPayload = (
+  imageGcsUri: string,
+  imageMimeType: string,
+  audioGcsUri: string,
+  audioMimeType: string,
+  prompt: string,
+  config: AppConfig,
+  options: {
+    sharpness?: number;
+  } = {}
+): GenerationPayload => {
+  const { sharpness = 1 } = options;
+  const timestamp = generateTimestamp();
+  const outputUri = `gs://${config.gcsBucket}/${config.outputFolder}/video_${timestamp}`;
+
+  return {
+    _model: MODELS.EXPERIMENTAL,
+    _operationType: "a2v-generation",
+    instances: [
+      {
+        prompt,
+        image: {
+          gcsUri: imageGcsUri,
+          mimeType: imageMimeType,
+        },
+        referenceAudios: [
+          {
+            audio: {
+              gcsUri: audioGcsUri,
+              mimeType: audioMimeType,
+            },
+          },
+        ],
+        sharpness,
+      },
+    ],
+    parameters: {
+      storageUri: outputUri,
+      experiments: {
+        modelName: MODELS.A2V_GENERATION,
+      },
     },
   };
 };

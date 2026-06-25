@@ -10,6 +10,7 @@ export const MODELS = {
   PERF_ESTIMATION: "veo-exp-perf-estimation",
   PERF_GENERATION: "veo-exp-perf-generation",
   VIDEO_TRANSFORM: "veo-exp-video-transform",
+  A2V_GENERATION: "veo-exp-a2v-generation",
 } as const;
 
 // --- API Endpoints & Config ---
@@ -47,6 +48,7 @@ export const COLLECTIONS = {
   PERF_MESHES: "perfMeshes",
   PERF_CHARACTERS: "perfCharacters",
   MASK_VIDEOS: "maskVideos",
+  AUDIO_FILES: "audioFiles",
 } as const;
 
 // --- Firebase Storage Paths ---
@@ -56,6 +58,7 @@ export const STORAGE_PATHS = {
   MASKS: "masks",
   PERF_MESHES: "perfMeshes",
   BLUE_MESHES: "bluemeshes",
+  AUDIO: "audio",
 } as const;
 
 // --- Pagination ---
@@ -80,4 +83,7 @@ export const MIME = {
   VIDEO_MP4: "video/mp4",
   IMAGE_JPEG: "image/jpeg",
   IMAGE_PNG: "image/png",
+  AUDIO_WAV: "audio/wav",
+  AUDIO_MP3: "audio/mp3",
+  AUDIO_MPEG: "audio/mpeg",
 } as const;

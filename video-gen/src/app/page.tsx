@@ -11,6 +11,7 @@ import SettingsPanel from "@/components/SettingsPanel";
 import UpscalePanel from "@/components/UpscalePanel";
 import TransformPanel from "@/components/TransformPanel";
 import PerformancePanel from "@/components/PerformancePanel";
+import DialoguePanel from "@/components/DialoguePanel";
 import AdminPanel from "@/components/AdminPanel";
 import { Settings, ShieldCheck } from "lucide-react";
 import { logout } from "@/lib/auth";
@@ -66,6 +67,8 @@ const AppContent = ({ isAdmin }: { isAdmin: boolean }) => {
                   setPreviewRightLabel(right || "Output");
                 }}
               />
+            ) : activeView === "dialogue" ? (
+              <DialoguePanel onGenerate={handleGenerate} />
             ) : activeView === "tasks" ? (
               <OperationsPanel
                 operations={operations}

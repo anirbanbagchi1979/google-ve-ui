@@ -57,6 +57,11 @@ service cloud.firestore {
       allow read, write: if isAllowed();
     }
 
+    // audioFiles — dialogue audio library, allowlisted users only
+    match /audioFiles/{docId} {
+      allow read, write: if isAllowed();
+    }
+
     // projects — readable by all allowed users (shared); only owner can modify/delete
     match /projects/{docId} {
       allow read: if isAllowed();

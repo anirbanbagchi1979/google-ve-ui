@@ -16,6 +16,7 @@ import {
   Clapperboard,
   Drama,
   Film,
+  Mic,
 } from "lucide-react";
 import { PanelHeader } from "@/components/ui/PanelHeader";
 
@@ -47,6 +48,7 @@ const TYPE_ICON: Record<string, React.ReactNode> = {
   generation: <Film size={13} className="text-blue-400 shrink-0" />,
   "perf-estimation": <Drama size={13} className="text-blue-400 shrink-0" />,
   "perf-generation": <Drama size={13} className="text-blue-400 shrink-0" />,
+  "a2v-generation": <Mic size={13} className="text-violet-400 shrink-0" />,
 };
 
 const OperationsPanel = ({ operations, hasMore, loadingMore, onLoadMore, addLog, onVideoSelect, onStatusUpdate }: OperationsPanelProps) => {

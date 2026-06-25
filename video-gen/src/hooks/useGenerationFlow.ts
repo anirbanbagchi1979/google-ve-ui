@@ -112,7 +112,7 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
       
       for (const op of runningOps) {
         try {
-          const modelName = op.modelUsed || (op.type === "upscale" ? configRef.current.upscaleModel : (op.type === "perf-estimation" || op.type === "perf-generation") ? MODELS.EXPERIMENTAL : configRef.current.videoGenModel);
+          const modelName = op.modelUsed || (op.type === "upscale" ? configRef.current.upscaleModel : (op.type === "perf-estimation" || op.type === "perf-generation" || op.type === "a2v-generation") ? MODELS.EXPERIMENTAL : configRef.current.videoGenModel);
           const endpoint = `https://${configRef.current.location}-aiplatform.googleapis.com/v1/projects/${configRef.current.projectId}/locations/${configRef.current.location}/publishers/google/models/${modelName}:fetchPredictOperation`;
 
           const response = await fetch("/api/proxy", {
@@ -146,13 +146,14 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
                 videos.find(v => v.mimeType === "video/mp4")?.gcsUri ||
                 (videos[0]?.gcsUri ? videos[0].gcsUri + ".mp4" : undefined);
 
-              if ((op.type === "upscale" || op.type === "transform" || op.type === "perf-generation") && outputGcsUri) {
+              if ((op.type === "upscale" || op.type === "transform" || op.type === "perf-generation" || op.type === "a2v-generation") && outputGcsUri) {
                 // Regular video outputs → videos collection
                 let outputUrl: string;
                 try { outputUrl = await getAuthenticatedUrl(outputGcsUri); } catch { outputUrl = gcsToFirebaseUrl(outputGcsUri); }
                 await addDoc(collection(db, COLLECTIONS.VIDEOS), {
                   name: op.type === "upscale" ? "Upscale output"
                     : op.type === "transform" ? "Transform output"
+                    : op.type === "a2v-generation" ? "Dialogue output"
                     : "Performance output",
                   url: outputUrl,
                   type: "video/mp4",
@@ -233,11 +234,17 @@ export function useGenerationFlow(setActiveView: (view: string) => void) {
       characterImageGcsUri: instance.referenceImages?.[0]?.image?.gcsUri || null,
       characterImageUrl: payload._characterImageUrl || null,
       sourceVideoUrl: payload._sourceVideoUrl || null,
+      // Audio-to-Video (dialogue) specific metadata
+      audioGcsUri: instance.referenceAudios?.[0]?.audio?.gcsUri || null,
+      audioUrl: payload._audioUrl || null,
+      imageGcsUri: instance.image?.gcsUri || null,
+      imageUrl: payload._imageUrl || null,
+      sharpness: instance.sharpness ?? null,
     };
 
     try {
-      const { _model: metaModel, _inputFileSize: _ifs, _operationType: _opType, _inputVideoUrl: _ivUrl, _meshVideoUrl: _mvUrl, _characterImageUrl: _ciUrl, _sourceVideoUrl: _svUrl, ...apiPayload } = payload;
-      void _ifs; void _opType; void _ivUrl; void _mvUrl; void _ciUrl; void _svUrl;
+      const { _model: metaModel, _inputFileSize: _ifs, _operationType: _opType, _inputVideoUrl: _ivUrl, _meshVideoUrl: _mvUrl, _characterImageUrl: _ciUrl, _sourceVideoUrl: _svUrl, _audioUrl: _auUrl, _imageUrl: _imUrl, ...apiPayload } = payload;
+      void _ifs; void _opType; void _ivUrl; void _mvUrl; void _ciUrl; void _svUrl; void _auUrl; void _imUrl;
       const experimentModel = experiments.modelName as string | undefined;
       const modelUsed = experimentModel === MODELS.UPSCALE
         ? config.upscaleModel

@@ -5,6 +5,7 @@ import {
   Sparkles,
   Clapperboard,
   Drama,
+  Mic,
   ListChecks,
   Settings,
   ShieldCheck,
@@ -20,6 +21,7 @@ const Sidebar = ({ activeView, onSelect }: SidebarProps) => {
     { id: "upscale",    icon: <Sparkles size={20} />,     label: "4K Upscale" },
     { id: "transform",  icon: <Clapperboard size={20} />, label: "Transform" },
     { id: "perf",       icon: <Drama size={20} />,        label: "Performance" },
+    { id: "dialogue",   icon: <Mic size={20} />,          label: "Dialogue" },
     { id: "tasks",      icon: <ListChecks size={20} />,   label: "Tasks" },
   ];
 
